@@ -180,4 +180,88 @@ export interface FamilySnapshot {
   generatedAt: string;
 }
 
+export type ActivityEntityType = 'task' | 'appointment';
+
+export interface ActivityItemData {
+  _id: string;
+  familyId: string;
+  actorId: string;
+  actorName: string;
+  entityType: ActivityEntityType;
+  entityId: string;
+  entityTitle: string;
+  action: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ActivityFilters {
+  entityType?: ActivityEntityType;
+  actorId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
+
+export interface Appointment {
+  _id: string;
+  familyId: string;
+  title: string;
+  doctorName?: string;
+  clinic?: string;
+  specialty?: string;
+  dateTime: string;
+  location?: string;
+  status: AppointmentStatus;
+  notes?: string;
+  assignedTo: { _id: string; name: string; avatarColor?: string } | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppointmentInput {
+  title: string;
+  doctorName?: string;
+  clinic?: string;
+  specialty?: string;
+  dateTime: string;
+  location?: string;
+  assignedTo: string;
+  status?: AppointmentStatus;
+  notes?: string;
+}
+
+export interface Prescription {
+  _id: string;
+  familyId: string;
+  medicationName: string;
+  dosage?: string;
+  frequency?: string;
+  prescribedBy?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  refillDueDate?: string | null;
+  notes?: string;
+  status: 'active' | 'completed' | 'discontinued';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrescriptionInput {
+  medicationName: string;
+  dosage?: string;
+  frequency?: string;
+  prescribedBy?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  refillDueDate?: string | null;
+  notes?: string;
+  status?: 'active' | 'completed' | 'discontinued';
+}
+
+
 

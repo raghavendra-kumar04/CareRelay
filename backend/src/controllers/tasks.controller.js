@@ -138,6 +138,32 @@ const listTasks = asyncHandler(async (req, res) => {
   });
 });
 
+async function runWithOptionalTransaction(fn) {
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      result = await fn(session);
+    });
+    return result;
+  } catch (err) {
+    if (
+      err.code === 20 ||
+      err.message?.includes('replica set') ||
+      err.message?.includes('Transaction numbers') ||
+      err.message?.includes('retryable writes')
+    ) {
+      return await fn(undefined);
+    }
+    throw err;
+  } finally {
+    if (session) {
+      await session.endSession().catch(() => {});
+    }
+  }
+}
+
 const createTask = asyncHandler(async (req, res) => {
   const familyId = req.params.fid;
   const { title, description, category, priority, assignedTo, dueDate } = req.body;
@@ -146,52 +172,49 @@ const createTask = asyncHandler(async (req, res) => {
 
   let createdId = null;
   const createdActivities = [];
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      createdActivities.length = 0;
-      const [task] = await CareTask.create(
-        [
-          {
-            familyId,
-            title,
-            description,
-            category,
-            priority,
-            assignedTo,
-            createdBy: req.user._id,
-            dueDate,
-            status: 'pending',
-          },
-        ],
-        { session }
-      );
 
-      const activity = await activityService.log(
+  await runWithOptionalTransaction(async (session) => {
+    createdActivities.length = 0;
+    const opts = session ? { session } : {};
+    const [task] = await CareTask.create(
+      [
         {
           familyId,
-          actorId: req.user._id,
-          actorName: req.user.name,
-          entityType: 'task',
-          entityId: task._id,
-          entityTitle: task.title,
-          action: 'created',
-          meta: {
-            priority,
-            category,
-            assignedTo: String(assignedTo),
-            dueDate: task.dueDate,
-          },
+          title,
+          description,
+          category,
+          priority,
+          assignedTo,
+          createdBy: req.user._id,
+          dueDate,
+          status: 'pending',
         },
-        { session }
-      );
+      ],
+      opts
+    );
 
-      createdActivities.push(activity);
-      createdId = task._id;
-    });
-  } finally {
-    await session.endSession();
-  }
+    const activity = await activityService.log(
+      {
+        familyId,
+        actorId: req.user._id,
+        actorName: req.user.name,
+        entityType: 'task',
+        entityId: task._id,
+        entityTitle: task.title,
+        action: 'created',
+        meta: {
+          priority,
+          category,
+          assignedTo: String(assignedTo),
+          dueDate: task.dueDate,
+        },
+      },
+      opts
+    );
+
+    createdActivities.push(activity);
+    createdId = task._id;
+  });
 
   const taskDto = await loadTaskDto(createdId, familyId);
   try {
@@ -288,82 +311,66 @@ const updateTask = asyncHandler(async (req, res) => {
   }
 
   if (Object.keys(updates).length > 0) {
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        activities.length = 0;
-        const logActivity = async (data, options) => {
-          const activity = await activityService.log(data, options);
-          activities.push(activity);
-          return activity;
-        };
-        const updated = await CareTask.findOneAndUpdate(
-          { _id: id, familyId, deletedAt: null, status: task.status },
-          { $set: updates },
-          { new: true, session }
+    await runWithOptionalTransaction(async (session) => {
+      activities.length = 0;
+      const opts = session ? { session } : {};
+      const logActivity = async (data) => {
+        const activity = await activityService.log(data, opts);
+        activities.push(activity);
+        return activity;
+      };
+      const updated = await CareTask.findOneAndUpdate(
+        { _id: id, familyId, deletedAt: null, status: task.status },
+        { $set: updates },
+        { new: true, ...opts }
+      );
+      if (!updated) {
+        throw new AppError(
+          409,
+          'TASK_CONFLICT',
+          'Task was modified by someone else; reload and retry'
         );
-        if (!updated) {
-          throw new AppError(
-            409,
-            'TASK_CONFLICT',
-            'Task was modified by someone else; reload and retry'
-          );
-        }
+      }
 
-        const actor = { actorId: req.user._id, actorName: req.user.name };
-        const base = {
-          familyId,
-          entityType: 'task',
-          entityId: updated._id,
-          entityTitle: updated.title,
-          ...actor,
-        };
+      const actor = { actorId: req.user._id, actorName: req.user.name };
+      const base = {
+        familyId,
+        entityType: 'task',
+        entityId: updated._id,
+        entityTitle: updated.title,
+        ...actor,
+      };
 
-        if (assigneeChanged) {
-          await logActivity(
-            {
-              ...base,
-              action: 'reassigned',
-              meta: { from: String(task.assignedTo), to: String(updates.assignedTo) },
-            },
-            { session }
-          );
-        }
+      if (assigneeChanged) {
+        await logActivity({
+          ...base,
+          action: 'reassigned',
+          meta: { from: String(task.assignedTo), to: String(updates.assignedTo) },
+        });
+      }
 
-        if (completing) {
-          await logActivity(
-            {
-              ...base,
-              action: 'completed',
-              meta: { completionNote: updates.completionNote },
-            },
-            { session }
-          );
-        } else if (statusChanged) {
-          await logActivity(
-            {
-              ...base,
-              action: 'status_changed',
-              meta: { from: task.status, to: updates.status },
-            },
-            { session }
-          );
-        }
+      if (completing) {
+        await logActivity({
+          ...base,
+          action: 'completed',
+          meta: { completionNote: updates.completionNote },
+        });
+      } else if (statusChanged) {
+        await logActivity({
+          ...base,
+          action: 'status_changed',
+          meta: { from: task.status, to: updates.status },
+        });
+      }
 
-        if (changedFields.length > 0) {
-          await logActivity(
-            {
-              ...base,
-              action: 'updated',
-              meta: { fields: changedFields },
-            },
-            { session }
-          );
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+      if (changedFields.length > 0) {
+        await logActivity({
+          ...base,
+          action: 'updated',
+          meta: { fields: changedFields },
+        });
+      }
+    });
   }
 
   const taskDto = await loadTaskDto(id, familyId);
@@ -403,41 +410,37 @@ const addNote = asyncHandler(async (req, res) => {
   }
 
   const activities = [];
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      activities.length = 0;
-      const updated = await CareTask.findOneAndUpdate(
-        { _id: id, familyId, deletedAt: null },
-        {
-          $push: {
-            notes: { author: req.user._id, text, createdAt: new Date() },
-          },
+  await runWithOptionalTransaction(async (session) => {
+    activities.length = 0;
+    const opts = session ? { session } : {};
+    const updated = await CareTask.findOneAndUpdate(
+      { _id: id, familyId, deletedAt: null },
+      {
+        $push: {
+          notes: { author: req.user._id, text, createdAt: new Date() },
         },
-        { new: true, session }
-      );
-      if (!updated) {
-        throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
-      }
+      },
+      { new: true, ...opts }
+    );
+    if (!updated) {
+      throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
+    }
 
-      const activity = await activityService.log(
-        {
-          familyId,
-          actorId: req.user._id,
-          actorName: req.user.name,
-          entityType: 'task',
-          entityId: updated._id,
-          entityTitle: updated.title,
-          action: 'note_added',
-          meta: { noteLength: text.length },
-        },
-        { session }
-      );
-      activities.push(activity);
-    });
-  } finally {
-    await session.endSession();
-  }
+    const activity = await activityService.log(
+      {
+        familyId,
+        actorId: req.user._id,
+        actorName: req.user.name,
+        entityType: 'task',
+        entityId: updated._id,
+        entityTitle: updated.title,
+        action: 'note_added',
+        meta: { noteLength: text.length },
+      },
+      opts
+    );
+    activities.push(activity);
+  });
 
   const taskDto = await loadTaskDto(id, familyId);
   try {
@@ -457,37 +460,33 @@ const deleteTask = asyncHandler(async (req, res) => {
   const { fid: familyId, id } = req.params;
 
   const activities = [];
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      activities.length = 0;
-      const deleted = await CareTask.findOneAndUpdate(
-        { _id: id, familyId, deletedAt: null },
-        { $set: { deletedAt: new Date() } },
-        { new: true, session }
-      );
-      if (!deleted) {
-        throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
-      }
+  await runWithOptionalTransaction(async (session) => {
+    activities.length = 0;
+    const opts = session ? { session } : {};
+    const deleted = await CareTask.findOneAndUpdate(
+      { _id: id, familyId, deletedAt: null },
+      { $set: { deletedAt: new Date() } },
+      { new: true, ...opts }
+    );
+    if (!deleted) {
+      throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
+    }
 
-      const activity = await activityService.log(
-        {
-          familyId,
-          actorId: req.user._id,
-          actorName: req.user.name,
-          entityType: 'task',
-          entityId: deleted._id,
-          entityTitle: deleted.title,
-          action: 'deleted',
-          meta: {},
-        },
-        { session }
-      );
-      activities.push(activity);
-    });
-  } finally {
-    await session.endSession();
-  }
+    const activity = await activityService.log(
+      {
+        familyId,
+        actorId: req.user._id,
+        actorName: req.user.name,
+        entityType: 'task',
+        entityId: deleted._id,
+        entityTitle: deleted.title,
+        action: 'deleted',
+        meta: {},
+      },
+      opts
+    );
+    activities.push(activity);
+  });
 
   try {
     emitActivities(String(familyId), activities);

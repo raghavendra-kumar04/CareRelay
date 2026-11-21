@@ -5,7 +5,7 @@ const activitySchema = new Schema(
     familyId: { type: Schema.Types.ObjectId, ref: 'Family', required: true },
     actorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     actorName: { type: String, required: true, trim: true, maxlength: 200 },
-    entityType: { type: String, enum: ['task', 'appointment'], required: true },
+    entityType: { type: String, enum: ['task', 'appointment', 'prescription'], required: true },
     entityId: { type: Schema.Types.ObjectId, required: true },
     entityTitle: { type: String, required: true, trim: true, maxlength: 200 },
     action: {
@@ -44,9 +44,8 @@ blockedQueryHooks.forEach((name) => {
 });
 
 // Documents may be inserted once; re-saving an existing record is rejected.
-activitySchema.pre('save', function (next) {
-  if (!this.isNew) return next(new Error('Activity records are immutable'));
-  next();
+activitySchema.pre('save', function () {
+  if (!this.isNew) throw new Error('Activity records are immutable');
 });
 
 module.exports = model('Activity', activitySchema);

@@ -1,0 +1,20 @@
+PASS | a) GET activities without token | status=401 | error.code=TOKEN_MISSING | 
+PASS | b) admin GET activities: 200, 12 items, pagination, descending | status=200 | error.code=null | count=12 pagination={"page":1,"limit":20,"total":12} descending=true
+PASS | c) ?limit=5&page=2 -> 5 items, page 2, total 12 | status=200 | error.code=null | count=5 pagination={"page":2,"limit":5,"total":12}
+PASS | c) ?limit=101 -> 400 VALIDATION_ERROR | status=400 | error.code=VALIDATION_ERROR | 
+PASS | d) ?entityType=task -> all task | status=200 | error.code=null | count=6
+PASS | d) ?entityType=bogus -> 400 | status=400 | error.code=VALIDATION_ERROR | 
+PASS | e) ?actorId=<MEMBER id> -> all that actor | status=200 | error.code=null | count=6
+PASS | e) ?actorId=bad -> 400 | status=400 | error.code=VALIDATION_ERROR | 
+PASS | f) ?startDate=1 day ago&endDate=now -> all in range | status=200 | error.code=null | count=6 allInRange=true
+PASS | f) startDate after endDate -> 400 | status=400 | error.code=VALIDATION_ERROR | 
+PASS | g) MEMBER GET activities -> 200 | status=200 | error.code=null | 
+PASS | g) OUTSIDER GET Timeline activities -> 403 | status=403 | error.code=FAMILY_ACCESS_DENIED | 
+PASS | h) activity items have exactly the expected keys | status=200 | error.code=null | itemsChecked=12 mismatchedIdx=[] extra=[] missing=[]
+FAIL | i) ADMIN POST summaries/generate -> 201 or safe AI error | status=502 | error.code=AI_PROVIDER_ERROR | bodyBytes=120
+PASS | j) ADMIN GET summaries -> 200 with pagination | status=200 | error.code=null | pagination={"page":1,"limit":10,"total":1}
+PASS | j) ADMIN GET summaries/000...0 -> 404 SUMMARY_NOT_FOUND | status=404 | error.code=SUMMARY_NOT_FOUND | 
+PASS | k) MEMBER GET summaries -> 200 | status=200 | error.code=null | 
+PASS | k) OUTSIDER POST generate on Timeline -> 403 | status=403 | error.code=FAMILY_ACCESS_DENIED | 
+PASS | l) summary responses contain no email, passwordHash, inviteToken, accessToken | status=null | error.code=null | bodiesScanned=4 hits=[]
+TOTAL=19 FAILED=1

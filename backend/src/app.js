@@ -8,6 +8,11 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth.routes');
 const familyRoutes = require('./routes/family.routes');
 const taskRoutes = require('./routes/tasks.routes');
+const activityRoutes = require('./routes/activities.routes');
+const summaryRoutes = require('./routes/summary.routes');
+const appointmentRoutes = require('./routes/appointments.routes');
+const prescriptionRoutes = require('./routes/prescriptions.routes');
+const { startReminderJob } = require('./jobs/reminderJob');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const http = require('http');
 const { initSocket } = require('./socket/socketServer');
@@ -22,6 +27,9 @@ if (env.NODE_ENV !== 'test') {
 app.use(express.json());
 app.use(cookieParser());
 
+app.get('/health', (req, res) => {
+  res.json({ success: true, data: { status: 'ok' } });
+});
 app.get('/api/health', (req, res) => {
   res.json({ success: true, data: { status: 'ok' } });
 });
@@ -29,6 +37,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/families', familyRoutes);
 app.use('/api/families/:fid/tasks', taskRoutes);
+app.use('/api/families/:fid/appointments', appointmentRoutes);
+app.use('/api/families/:fid/prescriptions', prescriptionRoutes);
+app.use('/api/families/:fid/activities', activityRoutes);
+app.use('/api/families/:fid/summaries', summaryRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -38,6 +50,17 @@ if (require.main === module) {
     .then(() => {
       const httpServer = http.createServer(app);
       initSocket(httpServer);
+      startReminderJob();
+
+      httpServer.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.error(`Port ${env.PORT} is already in use by another process. Run: Stop-Process -Id (Get-NetTCPConnection -LocalPort ${env.PORT}).OwningProcess -Force`);
+        } else {
+          console.error('Server error:', err.message);
+        }
+        process.exit(1);
+      });
+
       httpServer.listen(env.PORT, () => {
         console.log(`Server listening on port ${env.PORT}`);
       });
