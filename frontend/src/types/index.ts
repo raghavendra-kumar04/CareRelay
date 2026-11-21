@@ -131,4 +131,53 @@ export interface PaginationMeta {
   total: number;
 }
 
+export interface SnapshotAssignee {
+  _id: string;
+  name: string;
+  avatarColor: string;
+}
+
+export interface SnapshotAppointment {
+  _id: string;
+  title: string;
+  doctorName: string;
+  clinic: string;
+  specialty: string;
+  dateTime: string;
+  location: string;
+  status: string;
+  notes: string;
+  assignedTo: SnapshotAssignee | null;
+}
+
+export interface SnapshotOverdueTask {
+  _id: string;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  category: TaskCategory;
+  dueDate: string | null;
+  assignedTo: SnapshotAssignee | null;
+}
+
+export interface SnapshotActivity {
+  _id: string;
+  actorId: string;
+  actorName: string;
+  entityType: string;
+  entityId: string;
+  entityTitle: string;
+  action: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface FamilySnapshot {
+  counts: { completed: number; pending: number; overdue: number };
+  upcomingAppointments: SnapshotAppointment[];
+  overdueTasks: SnapshotOverdueTask[];
+  recentActivities: SnapshotActivity[];
+  generatedAt: string;
+}
+
 

@@ -1,6 +1,9 @@
 const crypto = require('crypto');
 const Family = require('../models/Family');
 const Membership = require('../models/Membership');
+const CareTask = require('../models/CareTask');
+const Appointment = require('../models/Appointment');
+const Activity = require('../models/Activity');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -230,6 +233,110 @@ const removeMember = asyncHandler(async (req, res) => {
   });
 });
 
+// Snapshot DTO helpers: explicit field whitelists, never raw documents.
+function toUserRefDto(user) {
+  return user ? { _id: String(user._id), name: user.name, avatarColor: user.avatarColor } : null;
+}
+
+function toSnapshotAppointmentDto(appt) {
+  return {
+    _id: String(appt._id),
+    title: appt.title,
+    doctorName: appt.doctorName,
+    clinic: appt.clinic,
+    specialty: appt.specialty,
+    dateTime: appt.dateTime,
+    location: appt.location,
+    status: appt.status,
+    notes: appt.notes,
+    assignedTo: toUserRefDto(appt.assignedTo),
+  };
+}
+
+function toSnapshotTaskDto(task) {
+  return {
+    _id: String(task._id),
+    title: task.title,
+    priority: task.priority,
+    status: task.status,
+    category: task.category,
+    dueDate: task.dueDate,
+    assignedTo: toUserRefDto(task.assignedTo),
+  };
+}
+
+function toSnapshotActivityDto(activity) {
+  return {
+    _id: String(activity._id),
+    actorId: String(activity.actorId),
+    actorName: activity.actorName,
+    entityType: activity.entityType,
+    entityId: String(activity.entityId),
+    entityTitle: activity.entityTitle,
+    action: activity.action,
+    meta: activity.meta,
+    createdAt: activity.createdAt,
+  };
+}
+
+const getSnapshot = asyncHandler(async (req, res) => {
+  const familyId = req.params.fid;
+  const now = new Date();
+  const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    completedCount,
+    pendingCount,
+    overdueCount,
+    upcomingAppointments,
+    overdueTasks,
+    recentActivities,
+  ] = await Promise.all([
+    CareTask.countDocuments({ familyId, deletedAt: null, status: 'completed' }),
+    CareTask.countDocuments({ familyId, deletedAt: null, status: { $in: ['pending', 'in-progress'] } }),
+    CareTask.countDocuments({
+      familyId,
+      deletedAt: null,
+      status: { $ne: 'completed' },
+      dueDate: { $lt: now },
+    }),
+    Appointment.find({
+      familyId,
+      deletedAt: null,
+      status: 'scheduled',
+      dateTime: { $gte: now, $lte: sevenDaysAhead },
+    })
+      .sort({ dateTime: 1 })
+      .limit(20)
+      .populate('assignedTo', 'name avatarColor')
+      .lean(),
+    CareTask.find({
+      familyId,
+      deletedAt: null,
+      status: { $ne: 'completed' },
+      dueDate: { $lt: now },
+    })
+      .sort({ dueDate: 1 })
+      .limit(20)
+      .populate('assignedTo', 'name avatarColor')
+      .lean(),
+    Activity.find({ familyId }).sort({ createdAt: -1 }).limit(8).lean(),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      snapshot: {
+        counts: { completed: completedCount, pending: pendingCount, overdue: overdueCount },
+        upcomingAppointments: upcomingAppointments.map(toSnapshotAppointmentDto),
+        overdueTasks: overdueTasks.map(toSnapshotTaskDto),
+        recentActivities: recentActivities.map(toSnapshotActivityDto),
+        generatedAt: now,
+      },
+    },
+  });
+});
+
 module.exports = {
   createFamily,
   getMyFamilies,
@@ -238,4 +345,5 @@ module.exports = {
   regenerateInvite,
   joinByToken,
   removeMember,
+  getSnapshot,
 };

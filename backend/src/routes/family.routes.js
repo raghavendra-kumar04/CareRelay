@@ -23,6 +23,7 @@ router.get(
   requireFamilyMembership,
   controller.getFamily
 );
+router.get('/:fid/snapshot', requireAuth, requireFamilyMembership, controller.getSnapshot);
 router.get(
   '/:fid/members',
   requireAuth,
