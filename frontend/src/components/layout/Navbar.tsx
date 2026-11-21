@@ -4,7 +4,6 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getMyFamilies } from '../../lib/familyApi';
 import { useAuthStore } from '../../store/authStore';
-import RealTimeIndicator from './RealTimeIndicator';
 
 export function useFirstFamilyTasksPath(): string {
   const { data } = useQuery({ queryKey: ['families', 'mine'], queryFn: getMyFamilies });
@@ -116,8 +115,6 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <RealTimeIndicator />
-
           <div className="relative" ref={menuRef}>
             <button
               type="button"

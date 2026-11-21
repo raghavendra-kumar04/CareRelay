@@ -56,19 +56,6 @@ export default function SettingsPage() {
   const inviteUrl = inviteToken ? `${window.location.origin}/invite/${inviteToken}` : null;
   const inviteExpiresAt = detail?.family.inviteTokenExpiresAt ?? null;
 
-  const loadFamilies = useCallback(async () => {
-    setListLoading(true);
-    setListError(null);
-    try {
-      const { families: list } = await getMyFamilies();
-      setFamilies(list);
-    } catch (err) {
-      setListError(getApiErrorMessage(err, 'Could not load your families.'));
-    } finally {
-      setListLoading(false);
-    }
-  }, []);
-
   const loadDetail = useCallback(async (fid: string) => {
     setDetailLoading(true);
     setDetailError(null);
@@ -81,12 +68,33 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const loadFamilies = useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const { families: list } = await getMyFamilies();
+      setFamilies(list);
+      if (list.length > 0 && !selectedFid) {
+        const stored = localStorage.getItem('activeFamilyId');
+        const matched = list.find((f) => f.family._id === stored);
+        const toSelect = matched ? matched.family._id : list[0].family._id;
+        setSelectedFid(toSelect);
+        void loadDetail(toSelect);
+      }
+    } catch (err) {
+      setListError(getApiErrorMessage(err, 'Could not load your families.'));
+    } finally {
+      setListLoading(false);
+    }
+  }, [loadDetail, selectedFid]);
+
   useEffect(() => {
     void loadFamilies();
   }, [loadFamilies]);
 
   const handleSelect = (fid: string) => {
     setSelectedFid(fid);
+    localStorage.setItem('activeFamilyId', fid);
     setDetail(null);
     setInviteError(null);
     setRemoveError(null);
@@ -196,7 +204,7 @@ export default function SettingsPage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Family name"
-                className="w-full rounded-input border border-border bg-background px-3 py-2 text-text-primary"
+                className="w-full rounded-lg border border-border/80 bg-background px-3.5 py-2.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] placeholder:text-text-secondary/50 transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
               />
               {createError && <p className="mt-1 text-sm text-error">{createError}</p>}
             </div>
@@ -211,7 +219,12 @@ export default function SettingsPage() {
         </section>
 
         <section className="rounded-card bg-surface p-6 shadow-card">
-          <h2 className="mb-3 text-lg font-medium text-text-primary">Your families</h2>
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-text-primary">Your families</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Select a family to view their details, manage members, and configure invite links.
+            </p>
+          </div>
           {listLoading ? (
             spinner
           ) : listError ? (
@@ -237,11 +250,18 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => handleSelect(family._id)}
                       aria-pressed={selected}
-                      className={`flex w-full items-center justify-between gap-2 rounded-card border bg-background p-4 text-left shadow-card ${
-                        selected ? 'border-primary' : 'border-border'
+                      className={`flex w-full items-center justify-between gap-3 rounded-card border bg-background p-4 text-left shadow-card transition ${
+                        selected
+                          ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                          : 'border-border hover:border-primary/40 hover:bg-surface/50'
                       }`}
                     >
-                      <span className="truncate font-medium text-text-primary">{family.name}</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate font-medium text-text-primary">{family.name}</span>
+                        <span className="text-xs text-text-secondary mt-0.5">
+                          {selected ? 'Currently viewing details' : 'Click to view details'}
+                        </span>
+                      </div>
                       <RoleBadge role={role} />
                     </button>
                   </li>
@@ -250,6 +270,15 @@ export default function SettingsPage() {
             </ul>
           )}
         </section>
+
+        {!selectedFid && families.length > 0 && !listLoading && (
+          <section className="rounded-card border border-dashed border-border bg-surface p-8 text-center shadow-card">
+            <p className="text-base font-medium text-text-primary">No family selected</p>
+            <p className="mt-1 text-sm text-text-secondary">
+              Please select a family above to view their details, members, and workspace settings.
+            </p>
+          </section>
+        )}
 
         {selectedFid && detailLoading && !detail && (
           <section className="rounded-card bg-surface p-6 shadow-card">{spinner}</section>
@@ -302,7 +331,7 @@ export default function SettingsPage() {
                         readOnly
                         value={inviteUrl}
                         aria-label="Invite link"
-                        className="w-full rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                        className="w-full rounded-lg border border-border/80 bg-surface px-3.5 py-2 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] font-mono transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
                       />
                       <button
                         type="button"

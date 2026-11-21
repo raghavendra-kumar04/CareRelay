@@ -54,7 +54,6 @@ router.delete(
   '/:id',
   requireAuth,
   requireFamilyMembership,
-  requireRole('admin'),
   validate({ params: taskParams.params }),
   controller.deleteTask
 );

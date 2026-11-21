@@ -21,6 +21,12 @@ const SIMPLE_FIELDS = ['title', 'description', 'category', 'priority', 'dueDate'
 function toTaskDto(task) {
   const now = new Date();
   const assignee = task.assignedTo;
+  const creator = task.createdBy;
+  const creatorDto =
+    creator && typeof creator === 'object' && creator.name
+      ? { _id: String(creator._id), name: creator.name, avatarColor: creator.avatarColor }
+      : (creator ? { _id: String(creator), name: 'Family Member' } : null);
+
   return {
     _id: task._id,
     familyId: task.familyId,
@@ -32,7 +38,7 @@ function toTaskDto(task) {
     assignedTo: assignee
       ? { _id: assignee._id, name: assignee.name, avatarColor: assignee.avatarColor }
       : null,
-    createdBy: task.createdBy,
+    createdBy: creatorDto,
     dueDate: task.dueDate,
     completedAt: task.completedAt,
     completionNote: task.completionNote,
@@ -79,10 +85,9 @@ async function assertActiveMember(familyId, userId) {
 }
 
 async function loadTaskDto(taskId, familyId) {
-  const task = await CareTask.findOne({ _id: taskId, familyId, deletedAt: null }).populate(
-    'assignedTo',
-    ASSIGNEE_FIELDS
-  );
+  const task = await CareTask.findOne({ _id: taskId, familyId, deletedAt: null })
+    .populate('assignedTo', ASSIGNEE_FIELDS)
+    .populate('createdBy', ASSIGNEE_FIELDS);
   return task ? toTaskDto(task) : null;
 }
 
@@ -124,7 +129,9 @@ const listTasks = asyncHandler(async (req, res) => {
     _id: { $in: ids },
     familyId: match.familyId,
     deletedAt: null,
-  }).populate('assignedTo', ASSIGNEE_FIELDS);
+  })
+    .populate('assignedTo', ASSIGNEE_FIELDS)
+    .populate('createdBy', ASSIGNEE_FIELDS);
 
   const byId = new Map(loaded.map((task) => [String(task._id), task]));
   const ordered = ids.map((id) => byId.get(String(id))).filter(Boolean);
@@ -254,8 +261,33 @@ const updateTask = asyncHandler(async (req, res) => {
     throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
   }
 
-  if (task.status === 'completed' && !isAdmin) {
-    throw new AppError(403, 'TASK_LOCKED', 'Completed tasks can only be changed by an admin');
+  const isCreator = String(task.createdBy) === String(req.user._id);
+  const isAssignee = String(task.assignedTo) === String(req.user._id);
+
+  // Security & Confidentiality: Only the task creator or admin can edit task metadata
+  const isEditingMetadata =
+    SIMPLE_FIELDS.some((field) => body[field] !== undefined) ||
+    (body.assignedTo !== undefined && String(body.assignedTo) !== String(task.assignedTo));
+
+  if (isEditingMetadata && !isCreator && !isAdmin) {
+    throw new AppError(
+      403,
+      'CREATOR_ONLY',
+      'Only the creator of this task or a family admin can edit task details'
+    );
+  }
+
+  // Status transitions can be executed by the assigned member, task creator, or admin
+  if (body.status !== undefined && body.status !== task.status && !isAssignee && !isCreator && !isAdmin) {
+    throw new AppError(
+      403,
+      'PERMISSION_DENIED',
+      'Only the assigned member, task creator, or family admin can update task status'
+    );
+  }
+
+  if (task.status === 'completed' && !isAdmin && !isCreator) {
+    throw new AppError(403, 'TASK_LOCKED', 'Completed tasks can only be changed by the creator or an admin');
   }
 
   const updates = {};
@@ -398,15 +430,10 @@ const updateTask = asyncHandler(async (req, res) => {
 const addNote = asyncHandler(async (req, res) => {
   const { fid: familyId, id } = req.params;
   const { text } = req.body;
-  const isAdmin = req.membership.role === 'admin';
 
   const task = await CareTask.findOne({ _id: id, familyId, deletedAt: null });
   if (!task) {
     throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
-  }
-
-  if (task.status === 'completed' && !isAdmin) {
-    throw new AppError(403, 'TASK_LOCKED', 'Completed tasks can only be changed by an admin');
   }
 
   const activities = [];
@@ -458,6 +485,21 @@ const addNote = asyncHandler(async (req, res) => {
 
 const deleteTask = asyncHandler(async (req, res) => {
   const { fid: familyId, id } = req.params;
+  const isAdmin = req.membership.role === 'admin';
+
+  const task = await CareTask.findOne({ _id: id, familyId, deletedAt: null });
+  if (!task) {
+    throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
+  }
+
+  const isCreator = String(task.createdBy) === String(req.user._id);
+  if (!isCreator && !isAdmin) {
+    throw new AppError(
+      403,
+      'CREATOR_ONLY',
+      'Only the creator of this task or a family admin can delete this task'
+    );
+  }
 
   const activities = [];
   await runWithOptionalTransaction(async (session) => {

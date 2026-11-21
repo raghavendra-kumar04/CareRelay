@@ -93,7 +93,7 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   assignedTo: TaskAssignee | null;
-  createdBy: string;
+  createdBy: TaskAssignee | string;
   dueDate: string | null;
   completedAt: string | null;
   completionNote: string | null;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -6,11 +6,12 @@ import {
   AlertTriangle,
   ArrowRight,
   Calendar,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Plus,
   RefreshCw,
-  Sparkles,
   Users,
 } from 'lucide-react';
 import { useSnapshot } from '../hooks/useSnapshot';
@@ -34,6 +35,26 @@ export default function DashboardPage() {
 
   const families = myFamiliesData?.families ?? [];
   const [selectedFamilyId, setSelectedFamilyId] = useState<string>('');
+  const [familyDropdownOpen, setFamilyDropdownOpen] = useState(false);
+  const familyDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!familyDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (familyDropdownRef.current && !familyDropdownRef.current.contains(e.target as Node)) {
+        setFamilyDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFamilyDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [familyDropdownOpen]);
 
   useEffect(() => {
     if (families.length > 0 && !selectedFamilyId) {
@@ -96,25 +117,88 @@ export default function DashboardPage() {
       {/* Header: Family context & 10-Second tagline */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-text-primary">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">
               {activeFamily?.family.name || 'Family Care Hub'}
             </h1>
+
             {families.length > 1 && (
-              <select
-                value={selectedFamilyId}
-                onChange={(e) => {
-                  setSelectedFamilyId(e.target.value);
-                  localStorage.setItem('activeFamilyId', e.target.value);
-                }}
-                className="rounded border border-border bg-surface px-2 py-1 text-xs text-text-secondary"
-              >
-                {families.map((f) => (
-                  <option key={f.family._id} value={f.family._id}>
-                    {f.family.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={familyDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setFamilyDropdownOpen((open) => !open)}
+                  aria-expanded={familyDropdownOpen}
+                  aria-haspopup="listbox"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-primary shadow-sm hover:border-primary/50 hover:bg-background transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-semibold text-text-primary">{activeFamily?.family.name}</span>
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary uppercase tracking-wider">
+                    {activeFamily?.role || 'Member'}
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-text-secondary transition-transform duration-200 ${
+                      familyDropdownOpen ? 'rotate-180 text-primary' : ''
+                    }`}
+                  />
+                </button>
+
+                {familyDropdownOpen && (
+                  <div
+                    role="listbox"
+                    className="absolute left-0 mt-2 w-64 rounded-card border border-border bg-surface p-1.5 shadow-lg z-50 animate-in fade-in-0 duration-150"
+                  >
+                    <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                      Switch Family Hub
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {families.map((f) => {
+                        const isSelected = f.family._id === selectedFamilyId;
+                        return (
+                          <button
+                            key={f.family._id}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              setSelectedFamilyId(f.family._id);
+                              localStorage.setItem('activeFamilyId', f.family._id);
+                              setFamilyDropdownOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-xs transition-colors text-left ${
+                              isSelected
+                                ? 'bg-primary/10 font-semibold text-primary'
+                                : 'text-text-primary hover:bg-background hover:text-primary'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                                {f.family.name.charAt(0).toUpperCase()}
+                              </span>
+                              <span className="truncate">{f.family.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-[10px] text-text-secondary uppercase">
+                                {f.role}
+                              </span>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="my-1 border-t border-border" />
+                    <Link
+                      to="/settings"
+                      onClick={() => setFamilyDropdownOpen(false)}
+                      className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-text-secondary hover:bg-background hover:text-text-primary transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Create or join another family</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <p className="text-xs font-medium text-primary mt-0.5">
@@ -132,14 +216,6 @@ export default function DashboardPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${snapshotQuery.isFetching ? 'animate-spin' : ''}`} />
             <span>Updated {snapshot?.generatedAt ? format(new Date(snapshot.generatedAt), 'h:mm a') : 'just now'}</span>
           </button>
-
-          <Link
-            to="/summary"
-            className="flex items-center gap-1.5 rounded-pill bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:bg-primary-dark shadow-sm"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>AI Care Summary</span>
-          </Link>
         </div>
       </div>
 
@@ -349,73 +425,53 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {/* Bottom Section: Recent Activity Stream & AI Summary Action Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activities (2 cols) */}
-        <section className="lg:col-span-2 flex flex-col rounded-card border border-border bg-surface p-5 shadow-card">
-          <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+      {/* Bottom Section: Recent Family Activity Stream */}
+      <section className="flex flex-col rounded-card border border-border bg-surface p-5 shadow-card">
+        <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+          <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold text-text-primary">
               Recent Family Care Activity
             </h2>
-            <Link
-              to="/timeline"
-              className="text-xs font-medium text-primary hover:text-primary-dark flex items-center gap-1"
-            >
-              <span>Full Timeline</span>
-              <ArrowRight className="h-3 w-3" />
-            </Link>
+            <span className="text-xs text-text-secondary">Chronological updates</span>
           </div>
+          <Link
+            to="/timeline"
+            className="text-xs font-medium text-primary hover:text-primary-dark flex items-center gap-1"
+          >
+            <span>Full Timeline</span>
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
 
-          {recentActivities.length === 0 ? (
-            <p className="text-xs text-text-secondary py-4 text-center">
-              No recent activity recorded yet.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {recentActivities.slice(0, 6).map((act: SnapshotActivity) => (
-                <div key={act._id} className="flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-                      {initialsOf(act.actorName)}
-                    </span>
-                    <span className="truncate text-text-primary">
-                      <strong className="font-medium">{act.actorName}</strong>{' '}
-                      <span className="text-text-secondary">{act.action}</span>{' '}
-                      <span className="font-medium text-text-primary">"{act.entityTitle}"</span>
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-text-secondary">
-                    {formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}
+        {recentActivities.length === 0 ? (
+          <p className="text-xs text-text-secondary py-6 text-center">
+            No recent activity recorded yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {recentActivities.slice(0, 6).map((act: SnapshotActivity) => (
+              <div
+                key={act._id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/50 p-3 text-xs"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                    {initialsOf(act.actorName)}
+                  </span>
+                  <span className="truncate text-text-primary">
+                    <strong className="font-medium">{act.actorName}</strong>{' '}
+                    <span className="text-text-secondary">{act.action}</span>{' '}
+                    <span className="font-medium text-text-primary">"{act.entityTitle}"</span>
                   </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* AI Care Briefing Card (1 col) */}
-        <div className="flex flex-col justify-between rounded-card border border-primary/20 bg-primary/5 p-5 shadow-card">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-              <Sparkles className="h-4 w-4" />
-              <span>AI Family Care Briefing</span>
-            </div>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              Gemini synthesises recorded tasks, appointments, and activities into a structured, plain-language family update.
-            </p>
+                <span className="shrink-0 text-[11px] text-text-secondary">
+                  {formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}
+                </span>
+              </div>
+            ))}
           </div>
-
-          <div className="mt-4 pt-4 border-t border-primary/10">
-            <Link
-              to="/summary"
-              className="flex w-full items-center justify-center gap-2 rounded-input bg-primary px-4 py-2 text-xs font-medium text-white hover:bg-primary-dark shadow-sm"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Generate 7-Day Update</span>
-            </Link>
-          </div>
-        </div>
-      </div>
+        )}
+      </section>
     </div>
   );
 }

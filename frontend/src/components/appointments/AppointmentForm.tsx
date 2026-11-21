@@ -16,7 +16,7 @@ interface AppointmentFormProps {
 }
 
 const INPUT_CLASS =
-  'w-full rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  'w-full rounded-lg border border-border/80 bg-surface px-3.5 py-2.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] placeholder:text-text-secondary/50 transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15';
 
 export default function AppointmentForm({
   open,

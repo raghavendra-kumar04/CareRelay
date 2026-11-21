@@ -5,13 +5,14 @@ import TaskCard from '../components/tasks/TaskCard';
 import TaskForm from '../components/tasks/TaskForm';
 import { useCreateTask, useDeleteTask, useTaskList, useUpdateTask } from '../hooks/useTasks';
 import { getApiErrorMessage, getFamily, getMembers } from '../lib/familyApi';
+import { useAuthStore } from '../store/authStore';
 import type { Task, TaskInput, TaskPriority, TaskStatus, TaskUpdateInput } from '../types';
 
 const PAGE_SIZE = 20;
 const SKELETON_COUNT = 6;
 
 const SELECT_CLASS =
-  'rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  'rounded-lg border border-border/80 bg-surface px-3.5 py-2 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15';
 const BUTTON_PRIMARY =
   'rounded-input bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
 const BUTTON_SECONDARY =
@@ -44,7 +45,9 @@ export default function TasksPage() {
   const members = (membersQuery.data?.members ?? []).flatMap((member) =>
     member.user ? [{ _id: member.user._id, name: member.user.name }] : [],
   );
-  const canDelete = familyQuery.data?.role === 'admin';
+  const currentUser = useAuthStore((s) => s.user);
+  const currentUserId = currentUser?._id;
+  const isAdmin = familyQuery.data?.role === 'admin';
 
   const filters = {
     page,
@@ -78,8 +81,24 @@ export default function TasksPage() {
   }
 
   function openEdit(task: Task) {
+    const creatorId = typeof task.createdBy === 'object' ? task.createdBy?._id : task.createdBy;
+    const isCreator = Boolean(currentUserId && creatorId && currentUserId === creatorId);
+    if (!isCreator && !isAdmin) {
+      alert('Confidential: Only the creator of this task or a family admin can edit its details.');
+      return;
+    }
     setEditingTask(task);
     setFormOpen(true);
+  }
+
+  function handleStatusChange(task: Task, newStatus: TaskStatus, note?: string) {
+    updateTask.mutate({
+      id: task._id,
+      data: {
+        status: newStatus,
+        ...(note ? { completionNote: note } : {}),
+      },
+    });
   }
 
   function handleSubmit(input: TaskInput | TaskUpdateInput) {
@@ -137,16 +156,27 @@ export default function TasksPage() {
     content = (
       <div className="flex flex-col gap-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {tasks.map((task) => (
-            <TaskCard
-              key={task._id}
-              task={task}
-              onClick={() => openEdit(task)}
-              onEdit={() => openEdit(task)}
-              onDelete={() => handleDelete(task)}
-              canDelete={canDelete}
-            />
-          ))}
+          {tasks.map((task) => {
+            const creatorId = typeof task.createdBy === 'object' ? task.createdBy?._id : task.createdBy;
+            const isCreator = Boolean(currentUserId && creatorId && currentUserId === creatorId);
+            const isAssignee = Boolean(currentUserId && task.assignedTo?._id && currentUserId === task.assignedTo._id);
+            const canEditTask = isCreator || isAdmin;
+            const canDeleteTask = isCreator || isAdmin;
+            const canChangeStatus = isAssignee || isCreator || isAdmin;
+
+            return (
+              <TaskCard
+                key={task._id}
+                task={task}
+                onEdit={() => openEdit(task)}
+                onDelete={() => handleDelete(task)}
+                onStatusChange={(status, note) => handleStatusChange(task, status, note)}
+                canEdit={canEditTask}
+                canDelete={canDeleteTask}
+                canChangeStatus={canChangeStatus}
+              />
+            );
+          })}
         </div>
 
         <nav aria-label="Pagination" className="flex items-center justify-between gap-3">

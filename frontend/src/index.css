@@ -1,3 +1,91 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* Rich, modern styling for native form inputs across all pages */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="search"],
+  textarea {
+    border-radius: 0.5rem;
+    border-width: 1px;
+    border-color: #E2E6E3;
+    background-color: #FFFFFF;
+    color: #1C2B2B;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  input[type="text"]::placeholder,
+  input[type="email"]::placeholder,
+  input[type="password"]::placeholder,
+  input[type="search"]::placeholder,
+  textarea::placeholder {
+    color: rgba(107, 123, 122, 0.55);
+  }
+
+  input[type="text"]:hover,
+  input[type="email"]:hover,
+  input[type="password"]:hover,
+  input[type="date"]:hover,
+  input[type="time"]:hover,
+  input[type="datetime-local"]:hover,
+  input[type="search"]:hover,
+  textarea:hover {
+    border-color: rgba(92, 138, 110, 0.5);
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  input[type="date"]:focus,
+  input[type="time"]:focus,
+  input[type="datetime-local"]:focus,
+  input[type="search"]:focus,
+  textarea:focus {
+    outline: none;
+    border-color: #5C8A6E;
+    box-shadow: 0 0 0 3.5px rgba(92, 138, 110, 0.16), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  /* Attractive custom chevron and modern container for select dropdowns */
+  select {
+    appearance: none;
+    border-radius: 0.5rem;
+    border-width: 1px;
+    border-color: #E2E6E3;
+    background-color: #FFFFFF;
+    color: #1C2B2B;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235C8A6E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.1em 1.1em;
+    padding-right: 2.25rem !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  select:hover {
+    border-color: rgba(92, 138, 110, 0.5);
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #5C8A6E;
+    box-shadow: 0 0 0 3.5px rgba(92, 138, 110, 0.16), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+}
+
+@layer components {
+  .rich-input {
+    @apply w-full rounded-lg border border-border/80 bg-surface px-3.5 py-2.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] placeholder:text-text-secondary/50 transition-all duration-200 hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15;
+  }
+  .rich-label {
+    @apply flex flex-col gap-1.5 text-xs font-semibold tracking-wide text-text-secondary;
+  }
+}

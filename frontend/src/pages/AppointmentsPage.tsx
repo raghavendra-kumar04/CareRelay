@@ -117,7 +117,7 @@ export default function AppointmentsPage() {
               setStatusFilter(e.target.value as AppointmentStatus | '');
               setPage(1);
             }}
-            className="rounded-input border border-border bg-surface px-2.5 py-1.5 text-sm text-text-primary"
+            className="rounded-lg border border-border/80 bg-surface px-3 py-1.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
           >
             <option value="">All statuses</option>
             <option value="scheduled">Scheduled</option>
@@ -135,7 +135,7 @@ export default function AppointmentsPage() {
               setAssignedTo(e.target.value);
               setPage(1);
             }}
-            className="rounded-input border border-border bg-surface px-2.5 py-1.5 text-sm text-text-primary"
+            className="rounded-lg border border-border/80 bg-surface px-3 py-1.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
           >
             <option value="">All family members</option>
             {members.map((m) => (

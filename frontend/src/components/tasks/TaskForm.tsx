@@ -53,8 +53,8 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
 ];
 
 const INPUT_CLASS =
-  'w-full rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
-const LABEL_CLASS = 'flex flex-col gap-1 text-sm font-medium text-text-primary';
+  'w-full rounded-lg border border-border/80 bg-surface px-3.5 py-2.5 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] placeholder:text-text-secondary/50 transition-all duration-200 hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15';
+const LABEL_CLASS = 'flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-secondary';
 
 function toDateInputValue(iso: string): string {
   return format(new Date(iso), 'yyyy-MM-dd');
