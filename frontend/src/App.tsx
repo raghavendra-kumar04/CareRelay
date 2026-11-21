@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import InvitePage from './pages/InvitePage';
 import SettingsPage from './pages/SettingsPage';
 import TasksPage from './pages/TasksPage';
@@ -30,9 +31,11 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/invite/:token" element={<InvitePage />} />
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/families/:fid/tasks" element={<TasksPage />} />
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/families/:fid/tasks" element={<TasksPage />} />
+            </Route>
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

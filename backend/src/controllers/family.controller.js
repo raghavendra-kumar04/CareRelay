@@ -49,7 +49,6 @@ const createFamily = asyncHandler(async (req, res) => {
   const family = await Family.create({
     name: req.body.name,
     createdBy: req.user._id,
-    inviteToken: null,
   });
 
   try {

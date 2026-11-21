@@ -9,6 +9,8 @@ const authRoutes = require('./routes/auth.routes');
 const familyRoutes = require('./routes/family.routes');
 const taskRoutes = require('./routes/tasks.routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
+const http = require('http');
+const { initSocket } = require('./socket/socketServer');
 
 const app = express();
 
@@ -34,7 +36,9 @@ app.use(errorHandler);
 if (require.main === module) {
   connectDB()
     .then(() => {
-      app.listen(env.PORT, () => {
+      const httpServer = http.createServer(app);
+      initSocket(httpServer);
+      httpServer.listen(env.PORT, () => {
         console.log(`Server listening on port ${env.PORT}`);
       });
     })

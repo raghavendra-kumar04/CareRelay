@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const CareTask = require('../models/CareTask');
 const Membership = require('../models/Membership');
 const activityService = require('../services/activityService');
+const socketService = require('../services/socketService');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 
 const ASSIGNEE_FIELDS = 'name avatarColor';
@@ -46,6 +47,28 @@ function toTaskDto(task) {
     updatedAt: task.updatedAt,
     isOverdue: task.status !== 'completed' && task.dueDate != null && task.dueDate < now,
   };
+}
+
+function toActivityDto(activity) {
+  return {
+    _id: String(activity._id),
+    familyId: String(activity.familyId),
+    actorId: String(activity.actorId),
+    actorName: activity.actorName,
+    entityType: activity.entityType,
+    entityId: String(activity.entityId),
+    entityTitle: activity.entityTitle,
+    action: activity.action,
+    meta: activity.meta,
+    createdAt: activity.createdAt,
+  };
+}
+
+// Emits one activity:new event per activity. Call only after the transaction committed.
+function emitActivities(familyId, activities) {
+  for (const activity of activities) {
+    socketService.emitToFamily(familyId, 'activity:new', { activity: toActivityDto(activity) });
+  }
 }
 
 async function assertActiveMember(familyId, userId) {
@@ -122,9 +145,11 @@ const createTask = asyncHandler(async (req, res) => {
   await assertActiveMember(familyId, assignedTo);
 
   let createdId = null;
+  const createdActivities = [];
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      createdActivities.length = 0;
       const [task] = await CareTask.create(
         [
           {
@@ -142,7 +167,7 @@ const createTask = asyncHandler(async (req, res) => {
         { session }
       );
 
-      await activityService.log(
+      const activity = await activityService.log(
         {
           familyId,
           actorId: req.user._id,
@@ -161,6 +186,7 @@ const createTask = asyncHandler(async (req, res) => {
         { session }
       );
 
+      createdActivities.push(activity);
       createdId = task._id;
     });
   } finally {
@@ -168,6 +194,13 @@ const createTask = asyncHandler(async (req, res) => {
   }
 
   const taskDto = await loadTaskDto(createdId, familyId);
+  try {
+    const roomId = String(familyId);
+    socketService.emitToFamily(roomId, 'task:created', { task: taskDto });
+    emitActivities(roomId, createdActivities);
+  } catch (err) {
+    console.error('Socket emit failed:', err.message);
+  }
   return res.status(201).json({
     success: true,
     data: { task: taskDto },
@@ -204,6 +237,7 @@ const updateTask = asyncHandler(async (req, res) => {
 
   const updates = {};
   const changedFields = [];
+  const activities = [];
 
   for (const field of SIMPLE_FIELDS) {
     if (body[field] === undefined) continue;
@@ -257,6 +291,12 @@ const updateTask = asyncHandler(async (req, res) => {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
+        activities.length = 0;
+        const logActivity = async (data, options) => {
+          const activity = await activityService.log(data, options);
+          activities.push(activity);
+          return activity;
+        };
         const updated = await CareTask.findOneAndUpdate(
           { _id: id, familyId, deletedAt: null, status: task.status },
           { $set: updates },
@@ -280,7 +320,7 @@ const updateTask = asyncHandler(async (req, res) => {
         };
 
         if (assigneeChanged) {
-          await activityService.log(
+          await logActivity(
             {
               ...base,
               action: 'reassigned',
@@ -291,7 +331,7 @@ const updateTask = asyncHandler(async (req, res) => {
         }
 
         if (completing) {
-          await activityService.log(
+          await logActivity(
             {
               ...base,
               action: 'completed',
@@ -300,7 +340,7 @@ const updateTask = asyncHandler(async (req, res) => {
             { session }
           );
         } else if (statusChanged) {
-          await activityService.log(
+          await logActivity(
             {
               ...base,
               action: 'status_changed',
@@ -311,7 +351,7 @@ const updateTask = asyncHandler(async (req, res) => {
         }
 
         if (changedFields.length > 0) {
-          await activityService.log(
+          await logActivity(
             {
               ...base,
               action: 'updated',
@@ -327,6 +367,21 @@ const updateTask = asyncHandler(async (req, res) => {
   }
 
   const taskDto = await loadTaskDto(id, familyId);
+  if (Object.keys(updates).length > 0) {
+    try {
+      const roomId = String(familyId);
+      socketService.emitToFamily(roomId, 'task:updated', { task: taskDto });
+      if (completing) {
+        socketService.emitToFamily(roomId, 'task:completed', {
+          task: taskDto,
+          completionNote: updates.completionNote,
+        });
+      }
+      emitActivities(roomId, activities);
+    } catch (err) {
+      console.error('Socket emit failed:', err.message);
+    }
+  }
   return res.status(200).json({
     success: true,
     data: { task: taskDto },
@@ -347,9 +402,11 @@ const addNote = asyncHandler(async (req, res) => {
     throw new AppError(403, 'TASK_LOCKED', 'Completed tasks can only be changed by an admin');
   }
 
+  const activities = [];
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      activities.length = 0;
       const updated = await CareTask.findOneAndUpdate(
         { _id: id, familyId, deletedAt: null },
         {
@@ -363,7 +420,7 @@ const addNote = asyncHandler(async (req, res) => {
         throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
       }
 
-      await activityService.log(
+      const activity = await activityService.log(
         {
           familyId,
           actorId: req.user._id,
@@ -376,12 +433,20 @@ const addNote = asyncHandler(async (req, res) => {
         },
         { session }
       );
+      activities.push(activity);
     });
   } finally {
     await session.endSession();
   }
 
   const taskDto = await loadTaskDto(id, familyId);
+  try {
+    const roomId = String(familyId);
+    socketService.emitToFamily(roomId, 'task:updated', { task: taskDto });
+    emitActivities(roomId, activities);
+  } catch (err) {
+    console.error('Socket emit failed:', err.message);
+  }
   return res.status(201).json({
     success: true,
     data: { task: taskDto },
@@ -391,9 +456,11 @@ const addNote = asyncHandler(async (req, res) => {
 const deleteTask = asyncHandler(async (req, res) => {
   const { fid: familyId, id } = req.params;
 
+  const activities = [];
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      activities.length = 0;
       const deleted = await CareTask.findOneAndUpdate(
         { _id: id, familyId, deletedAt: null },
         { $set: { deletedAt: new Date() } },
@@ -403,7 +470,7 @@ const deleteTask = asyncHandler(async (req, res) => {
         throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
       }
 
-      await activityService.log(
+      const activity = await activityService.log(
         {
           familyId,
           actorId: req.user._id,
@@ -416,11 +483,17 @@ const deleteTask = asyncHandler(async (req, res) => {
         },
         { session }
       );
+      activities.push(activity);
     });
   } finally {
     await session.endSession();
   }
 
+  try {
+    emitActivities(String(familyId), activities);
+  } catch (err) {
+    console.error('Socket emit failed:', err.message);
+  }
   return res.status(200).json({
     success: true,
     data: { taskId: id, deleted: true },
