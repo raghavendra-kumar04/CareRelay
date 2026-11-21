@@ -1,0 +1,20 @@
+﻿{
+    "ADMIN":  {
+                  "email":  "admin1795259670@example.com",
+                  "userId":  "6b017d174714f24ff0f8e7bb",
+                  "token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YjAxN2QxNzQ3MTRmMjRmZjBmOGU3YmIiLCJpYXQiOjE3OTUyNTk2NzEsImV4cCI6MTc5NTI2MDU3MX0.TT1vZm2-pMVO4ZBHL9V6RqoVzshswstfnVOpTRvswqs"
+              },
+    "MEMBER":  {
+                   "email":  "member1795259670@example.com",
+                   "userId":  "6b017d184714f24ff0f8e7bd",
+                   "token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YjAxN2QxODQ3MTRmMjRmZjBmOGU3YmQiLCJpYXQiOjE3OTUyNTk2NzIsImV4cCI6MTc5NTI2MDU3Mn0.gt1o69Wjb1Uk3w8M0Cvj_7oUkgNpKvniW8ezr4GyTkg"
+               },
+    "OUTSIDER":  {
+                     "email":  "outsider1795259670@example.com",
+                     "userId":  "6b017d194714f24ff0f8e7bf",
+                     "token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YjAxN2QxOTQ3MTRmMjRmZjBmOGU3YmYiLCJpYXQiOjE3OTUyNTk2NzMsImV4cCI6MTc5NTI2MDU3M30.hu7wLEvzHOiWGsD8KmRfenKMI8WMAPX35Y246vbGMV8"
+                 },
+    "ts":  1795259670,
+    "familyId":  "6b017d2f4714f24ff0f8e7c1",
+    "inviteToken":  "866c791a-c4d1-4439-906c-ec2c05f09622"
+}

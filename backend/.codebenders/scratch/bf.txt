@@ -1,0 +1,1 @@
+{"success":true,"data":{"accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YjAxNzhiMWUxNDY5MTU4ZTM4NWJmYjAiLCJpYXQiOjE3OTUyNTg2MDMsImV4cCI6MTc5NTI1OTUwM30.3OhgNMsEzjbLNEd58plMOwx_WM0NcVP3w-_Uxm7OntI"}}

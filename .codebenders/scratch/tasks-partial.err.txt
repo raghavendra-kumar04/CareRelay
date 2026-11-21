@@ -1,0 +1,3 @@
+FATAL Error: create family 409 Email is already registered
+    at main (d:\CareRelay\.codebenders\scratch\tasks-partial.js:43:33)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)

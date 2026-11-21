@@ -1,0 +1,11 @@
+const path = require('path');
+const backend = 'd:\\CareRelay\\backend';
+require(path.join(backend, 'node_modules', 'dotenv')).config({ path: path.join(backend, '.env') });
+const jwt = require(path.join(backend, 'node_modules', 'jsonwebtoken'));
+const fs = require('fs');
+const real = fs.readFileSync(path.join(__dirname, 'access.txt'), 'utf8').trim();
+const sub = JSON.parse(Buffer.from(real.split('.')[1], 'base64url').toString()).sub;
+const now = Math.floor(Date.now() / 1000);
+const expired = jwt.sign({ sub, iat: now - 60, exp: now - 10 }, process.env.JWT_SECRET, { algorithm: 'HS256' });
+fs.writeFileSync(path.join(__dirname, 'expired.txt'), expired);
+console.log('signed expired token, exp in past by 10s, sub length', sub.length);
