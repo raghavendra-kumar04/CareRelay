@@ -63,6 +63,8 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+// Fallback alias for clients omitting the /api prefix
+app.use('/auth', authRoutes);
 app.use('/api/families', familyRoutes);
 app.use('/api/families/:fid/tasks', taskRoutes);
 app.use('/api/families/:fid/appointments', appointmentRoutes);

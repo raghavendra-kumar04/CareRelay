@@ -8,7 +8,8 @@ import { useAuthStore } from '../store/authStore';
 import { useSocketStore } from '../store/socketStore';
 import type { Task } from '../types';
 
-const SOCKET_URL: string = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const rawSocketUrl = (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const SOCKET_URL: string = rawSocketUrl.replace(/\/api\/?$/, '');
 
 const AUTH_ERROR_CODES = ['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_MISSING'];
 
