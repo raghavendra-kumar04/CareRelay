@@ -50,7 +50,6 @@ router.delete(
   '/:id',
   requireAuth,
   requireFamilyMembership,
-  requireRole('admin'),
   validate({ params: appointmentParams.params }),
   controller.deleteAppointment
 );

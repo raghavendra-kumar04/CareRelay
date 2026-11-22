@@ -19,8 +19,36 @@ const { initSocket } = require('./socket/socketServer');
 
 const app = express();
 
+// Trust reverse proxy (Render, Heroku, AWS ELB) for secure cookie handling
+app.set('trust proxy', 1);
+
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+const allowedOrigins = [
+  env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      // Support Vercel production and preview deployments
+      try {
+        const parsed = new URL(origin);
+        if (parsed.hostname.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
+      } catch {}
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 if (env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }

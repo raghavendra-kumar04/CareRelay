@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { format } from 'date-fns';
-import type { Task, TaskCategory, TaskInput, TaskPriority, TaskStatus, TaskUpdateInput } from '../../types';
+import type { Patient, Task, TaskCategory, TaskInput, TaskPriority, TaskStatus, TaskUpdateInput } from '../../types';
 
 interface TaskFormProps {
   open: boolean;
   onClose: () => void;
   initialTask?: Task | null;
   members: { _id: string; name: string }[];
+  patients?: Patient[];
+  defaultPatientId?: string;
   isSubmitting: boolean;
   onSubmit: (input: TaskInput | TaskUpdateInput) => void;
   canEditStatus?: boolean;
@@ -19,6 +21,7 @@ interface FormState {
   category: TaskCategory;
   priority: TaskPriority;
   assignedTo: string;
+  patientId: string;
   dueDate: string;
   status: TaskStatus;
   completionNote: string;
@@ -64,13 +67,14 @@ function toIsoOrNull(dateValue: string): string | null {
   return dateValue ? new Date(`${dateValue}T00:00:00`).toISOString() : null;
 }
 
-function toFormState(task: Task | null | undefined): FormState {
+function toFormState(task: Task | null | undefined, defaultPatientId?: string): FormState {
   return {
     title: task?.title ?? '',
     description: task?.description ?? '',
     category: task?.category ?? 'other',
     priority: task?.priority ?? 'medium',
     assignedTo: task?.assignedTo?._id ?? '',
+    patientId: task?.patientId ?? defaultPatientId ?? '',
     dueDate: task?.dueDate ? toDateInputValue(task.dueDate) : '',
     status: task?.status ?? 'pending',
     completionNote: task?.completionNote ?? '',
@@ -82,20 +86,22 @@ export default function TaskForm({
   onClose,
   initialTask,
   members,
+  patients,
+  defaultPatientId,
   isSubmitting,
   onSubmit,
   canEditStatus = true,
 }: TaskFormProps) {
   const isEdit = Boolean(initialTask);
-  const [form, setForm] = useState<FormState>(() => toFormState(initialTask));
+  const [form, setForm] = useState<FormState>(() => toFormState(initialTask, defaultPatientId));
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     if (open) {
-      setForm(toFormState(initialTask));
+      setForm(toFormState(initialTask, defaultPatientId));
       setErrors({});
     }
-  }, [open, initialTask]);
+  }, [open, initialTask, defaultPatientId]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,11 +143,14 @@ export default function TaskForm({
 
   function buildCreatePayload(): TaskInput {
     const description = form.description.trim();
+    const selectedP = (patients || []).find((p) => String(p._id) === String(form.patientId));
     const input: TaskInput = {
       title: form.title.trim(),
       category: form.category,
       priority: form.priority,
       assignedTo: form.assignedTo,
+      patientId: form.patientId || undefined,
+      patientName: selectedP?.name || undefined,
       dueDate: toIsoOrNull(form.dueDate),
     };
     if (description) input.description = description;
@@ -158,6 +167,12 @@ export default function TaskForm({
     if (form.category !== task.category) update.category = form.category;
     if (form.priority !== task.priority) update.priority = form.priority;
     if (form.assignedTo !== (task.assignedTo?._id ?? '')) update.assignedTo = form.assignedTo;
+
+    if (form.patientId !== (task.patientId ?? '')) {
+      const selectedP = (patients || []).find((p) => String(p._id) === String(form.patientId));
+      update.patientId = form.patientId || undefined;
+      update.patientName = selectedP?.name || undefined;
+    }
 
     const initialDate = task.dueDate ? toDateInputValue(task.dueDate) : '';
     if (form.dueDate !== initialDate) update.dueDate = toIsoOrNull(form.dueDate);
@@ -225,6 +240,25 @@ export default function TaskForm({
             />
             {errors.description && <span className="text-sm text-error">{errors.description}</span>}
           </label>
+
+          {patients && patients.length > 0 && (
+            <label className={LABEL_CLASS} htmlFor="task-patient">
+              Care Recipient / Patient
+              <select
+                id="task-patient"
+                value={form.patientId}
+                onChange={(e) => updateField('patientId', e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="">General Family Task (No specific patient)</option>
+                {patients.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} {p.relationship ? `(${p.relationship})` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={LABEL_CLASS} htmlFor="task-category">

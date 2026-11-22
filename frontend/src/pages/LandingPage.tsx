@@ -20,13 +20,11 @@ export default function LandingPage() {
       {/* Top Navbar */}
       <header className="sticky top-0 z-50 border-b border-border bg-surface/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-white shadow-sm">
-              C
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img src="/logo-icon.png" alt="CareRelay" className="h-8 w-auto object-contain transition group-hover:scale-105" />
+            <span className="text-lg font-bold tracking-tight text-text-primary">
+              Care<span className="text-primary">Relay</span>
             </span>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold tracking-tight text-primary">CareRelay</span>
-            </div>
           </Link>
 
           <nav className="flex items-center gap-3">
@@ -59,8 +57,12 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-border bg-surface py-16 sm:py-24">
+      <section className="relative overflow-hidden border-b border-border bg-surface py-14 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 text-center flex flex-col items-center">
+          <div className="mb-6">
+            <img src="/logo.png" alt="CareRelay" className="h-28 sm:h-36 w-auto object-contain drop-shadow-sm" />
+          </div>
+
           <div className="inline-flex items-center gap-2 rounded-pill border border-primary/20 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary mb-6">
             <Heart className="h-3.5 w-3.5 fill-primary" />
             <span>Family Care Coordination Platform</span>
@@ -311,8 +313,11 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="mt-auto border-t border-border bg-surface py-8 text-center text-xs text-text-secondary">
         <div className="mx-auto max-w-6xl px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-text-primary">CareRelay</span>
+          <div className="flex items-center gap-2.5">
+            <img src="/logo-icon.png" alt="CareRelay" className="h-5 w-auto object-contain" />
+            <span className="font-semibold text-text-primary">
+              Care<span className="text-primary">Relay</span>
+            </span>
             <span>• ACE Builder Hackathon Problem Statement 4</span>
           </div>
           <p className="text-[11px] max-w-md text-text-secondary">

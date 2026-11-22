@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
+import PatientSelectorBar from '../components/family/PatientSelectorBar';
 import TaskCard from '../components/tasks/TaskCard';
 import TaskForm from '../components/tasks/TaskForm';
 import { useCreateTask, useDeleteTask, useTaskList, useUpdateTask } from '../hooks/useTasks';
 import { getApiErrorMessage, getFamily, getMembers } from '../lib/familyApi';
 import { useAuthStore } from '../store/authStore';
+import { usePatientStore } from '../store/patientStore';
 import type { Task, TaskInput, TaskPriority, TaskStatus, TaskUpdateInput } from '../types';
 
 const PAGE_SIZE = 20;
@@ -48,16 +50,25 @@ export default function TasksPage() {
   const currentUser = useAuthStore((s) => s.user);
   const currentUserId = currentUser?._id;
   const isAdmin = familyQuery.data?.role === 'admin';
+  const family = familyQuery.data?.family;
+
+  const { selectedPatientId, getSelectedPatientId } = usePatientStore();
+  const activePatientId = getSelectedPatientId(
+    fid,
+    family?.patients?.[0]?._id ? String(family.patients[0]._id) : undefined
+  );
+  const patientFilter = selectedPatientId === 'all' ? undefined : (activePatientId || undefined);
 
   const filters = {
     page,
     limit: PAGE_SIZE,
     status: status || undefined,
     assignedTo: assignedTo || undefined,
+    patientId: patientFilter,
     priority: priority || undefined,
     overdue: overdueOnly || undefined,
   };
-  const filtersActive = Boolean(status || assignedTo || priority || overdueOnly);
+  const filtersActive = Boolean(status || assignedTo || priority || overdueOnly || patientFilter);
 
   const taskList = useTaskList(fid, filters);
   const createTask = useCreateTask(fid);
@@ -206,6 +217,14 @@ export default function TasksPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-6">
+      {family && (
+        <PatientSelectorBar
+          family={family}
+          isAdmin={isAdmin}
+          showDetailsCard={false}
+        />
+      )}
+
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-text-primary">Tasks</h1>
         <button type="button" onClick={openCreate} disabled={!fid} className={BUTTON_PRIMARY}>
@@ -275,9 +294,8 @@ export default function TasksPage() {
             setOverdueOnly((current) => !current);
             setPage(1);
           }}
-          className={`rounded-pill border px-4 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-            overdueOnly ? 'border-error bg-error/10 text-error' : 'border-border text-text-secondary hover:bg-background'
-          }`}
+          className={`rounded-pill border px-4 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${overdueOnly ? 'border-error bg-error/10 text-error' : 'border-border text-text-secondary hover:bg-background'
+            }`}
         >
           Overdue only
         </button>
@@ -290,6 +308,8 @@ export default function TasksPage() {
         onClose={closeForm}
         initialTask={editingTask}
         members={members}
+        patients={family?.patients}
+        defaultPatientId={patientFilter}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
         canEditStatus

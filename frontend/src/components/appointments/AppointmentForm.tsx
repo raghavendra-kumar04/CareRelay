@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Appointment, AppointmentInput, AppointmentStatus } from '../../types';
+import type { Appointment, AppointmentInput, AppointmentStatus, Patient } from '../../types';
 
 interface MemberOption {
   _id: string;
@@ -12,6 +12,8 @@ interface AppointmentFormProps {
   onSubmit: (data: AppointmentInput) => void;
   initialAppointment?: Appointment | null;
   members: MemberOption[];
+  patients?: Patient[];
+  defaultPatientId?: string;
   isSubmitting?: boolean;
 }
 
@@ -24,12 +26,15 @@ export default function AppointmentForm({
   onSubmit,
   initialAppointment,
   members,
+  patients,
+  defaultPatientId,
   isSubmitting,
 }: AppointmentFormProps) {
   const [title, setTitle] = useState('');
   const [doctorName, setDoctorName] = useState('');
   const [clinic, setClinic] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [patientId, setPatientId] = useState(defaultPatientId || '');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [location, setLocation] = useState('');
@@ -43,6 +48,7 @@ export default function AppointmentForm({
       setDoctorName(initialAppointment.doctorName || '');
       setClinic(initialAppointment.clinic || '');
       setSpecialty(initialAppointment.specialty || '');
+      setPatientId(initialAppointment.patientId || defaultPatientId || '');
       const d = new Date(initialAppointment.dateTime);
       setDate(d.toISOString().split('T')[0]);
       setTime(d.toTimeString().slice(0, 5));
@@ -55,6 +61,7 @@ export default function AppointmentForm({
       setDoctorName('');
       setClinic('');
       setSpecialty('');
+      setPatientId(defaultPatientId || '');
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDate(tomorrow.toISOString().split('T')[0]);
@@ -64,7 +71,7 @@ export default function AppointmentForm({
       setStatus('scheduled');
       setNotes('');
     }
-  }, [initialAppointment, open, members]);
+  }, [initialAppointment, open, members, defaultPatientId]);
 
   if (!open) return null;
 
@@ -73,6 +80,7 @@ export default function AppointmentForm({
     if (!title.trim() || !date || !time || !assignedTo) return;
 
     const fullDateTime = new Date(`${date}T${time}:00`);
+    const selectedP = (patients || []).find((p) => String(p._id) === String(patientId));
 
     onSubmit({
       title: title.trim(),
@@ -82,6 +90,8 @@ export default function AppointmentForm({
       dateTime: fullDateTime.toISOString(),
       location: location.trim() || undefined,
       assignedTo,
+      patientId: patientId || undefined,
+      patientName: selectedP?.name || undefined,
       status,
       notes: notes.trim() || undefined,
     });
@@ -117,6 +127,26 @@ export default function AppointmentForm({
               className={INPUT_CLASS}
             />
           </div>
+
+          {patients && patients.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">
+                Care Recipient / Patient
+              </label>
+              <select
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="">General Family Visit (No specific patient)</option>
+                {patients.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} {p.relationship ? `(${p.relationship})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

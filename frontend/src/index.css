@@ -89,3 +89,66 @@
     @apply flex flex-col gap-1.5 text-xs font-semibold tracking-wide text-text-secondary;
   }
 }
+
+@media print {
+  /* 1. HIDE the entire application root completely during printing */
+  #root {
+    display: none !important;
+  }
+
+  /* 2. Configure body for pure white print canvas */
+  body {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 3. The portal containing the medical care sheet is the ONLY visible element */
+  #doctor-visit-modal-portal {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #doctor-visit-modal-portal .modal-backdrop {
+    display: none !important;
+  }
+
+  #doctor-visit-modal-portal .modal-card {
+    position: static !important;
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #doctor-visit-modal-portal .modal-controls {
+    display: none !important;
+  }
+
+  #doctor-visit-modal-portal .sheet-content {
+    display: block !important;
+    overflow: visible !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+}

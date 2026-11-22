@@ -44,6 +44,7 @@ const listTasksQuery = {
   query: z.object({
     status: z.enum(TASK_STATUSES).optional(),
     assignedTo: objectId.optional(),
+    patientId: z.string().optional(),
     priority: z.enum(TASK_PRIORITIES).optional(),
     category: z.enum(TASK_CATEGORIES).optional(),
     overdue: z
@@ -62,6 +63,8 @@ const createTaskSchema = {
     category: z.enum(TASK_CATEGORIES),
     priority: z.enum(TASK_PRIORITIES).optional().default('medium'),
     assignedTo: objectId,
+    patientId: z.string().optional(),
+    patientName: z.string().trim().optional(),
     dueDate: nullableDueDate,
   }),
 };
@@ -75,6 +78,8 @@ const updateTaskSchema = {
       priority: z.enum(TASK_PRIORITIES).optional(),
       dueDate: nullableDueDate,
       assignedTo: objectId.optional(),
+      patientId: z.string().optional(),
+      patientName: z.string().trim().optional(),
       status: z.enum(TASK_STATUSES).optional(),
       completionNote: z.string().trim().max(500).optional(),
     })

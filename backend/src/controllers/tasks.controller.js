@@ -16,7 +16,7 @@ const ALLOWED_TRANSITIONS = {
 };
 
 // Plain fields a member may change; assignedTo and status have their own rules.
-const SIMPLE_FIELDS = ['title', 'description', 'category', 'priority', 'dueDate'];
+const SIMPLE_FIELDS = ['title', 'description', 'category', 'priority', 'dueDate', 'patientId', 'patientName'];
 
 function toTaskDto(task) {
   const now = new Date();
@@ -35,6 +35,8 @@ function toTaskDto(task) {
     category: task.category,
     priority: task.priority,
     status: task.status,
+    patientId: task.patientId ? String(task.patientId) : null,
+    patientName: task.patientName || '',
     assignedTo: assignee
       ? { _id: assignee._id, name: assignee.name, avatarColor: assignee.avatarColor }
       : null,
@@ -55,7 +57,7 @@ function toTaskDto(task) {
   };
 }
 
-function toActivityDto(activity) {
+function toActivityDto(activity, taskDto = null) {
   return {
     _id: String(activity._id),
     familyId: String(activity.familyId),
@@ -66,14 +68,16 @@ function toActivityDto(activity) {
     entityTitle: activity.entityTitle,
     action: activity.action,
     meta: activity.meta,
+    assignedTo: taskDto?.assignedTo || null,
+    assignedBy: taskDto?.createdBy || null,
     createdAt: activity.createdAt,
   };
 }
 
 // Emits one activity:new event per activity. Call only after the transaction committed.
-function emitActivities(familyId, activities) {
+function emitActivities(familyId, activities, taskDto = null) {
   for (const activity of activities) {
-    socketService.emitToFamily(familyId, 'activity:new', { activity: toActivityDto(activity) });
+    socketService.emitToFamily(familyId, 'activity:new', { activity: toActivityDto(activity, taskDto) });
   }
 }
 
@@ -99,7 +103,7 @@ function normalizeValue(value) {
 
 const listTasks = asyncHandler(async (req, res) => {
   const { fid } = req.params;
-  const { status, assignedTo, priority, category, overdue, page, limit } = req.validatedQuery;
+  const { status, assignedTo, patientId, priority, category, overdue, page, limit } = req.validatedQuery;
 
   const match = {
     familyId: new mongoose.Types.ObjectId(fid),
@@ -112,6 +116,27 @@ const listTasks = asyncHandler(async (req, res) => {
   if (overdue) {
     if (!status) match.status = { $ne: 'completed' };
     match.dueDate = { $lt: new Date() };
+  }
+
+  if (patientId && patientId !== 'all') {
+    const Family = require('../models/Family');
+    const family = await Family.findById(fid).lean();
+    const primaryPatientId = family?.patients?.[0]?._id ? String(family.patients[0]._id) : null;
+    const isPrimary = primaryPatientId && String(patientId) === primaryPatientId;
+    const isObjectId = mongoose.Types.ObjectId.isValid(patientId);
+    const pObjectId = isObjectId ? new mongoose.Types.ObjectId(patientId) : null;
+
+    if (isPrimary) {
+      match.$or = [
+        ...(pObjectId ? [{ patientId: pObjectId }] : []),
+        { patientId: null },
+        { patientId: { $exists: false } },
+      ];
+    } else if (pObjectId) {
+      match.patientId = pObjectId;
+    } else {
+      match.patientId = patientId;
+    }
   }
 
   // Aggregation does not cast strings, so the match above uses ObjectIds.
@@ -173,7 +198,7 @@ async function runWithOptionalTransaction(fn) {
 
 const createTask = asyncHandler(async (req, res) => {
   const familyId = req.params.fid;
-  const { title, description, category, priority, assignedTo, dueDate } = req.body;
+  const { title, description, category, priority, assignedTo, dueDate, patientId, patientName } = req.body;
 
   await assertActiveMember(familyId, assignedTo);
 
@@ -194,6 +219,8 @@ const createTask = asyncHandler(async (req, res) => {
           assignedTo,
           createdBy: req.user._id,
           dueDate,
+          patientId: patientId && mongoose.Types.ObjectId.isValid(patientId) ? new mongoose.Types.ObjectId(patientId) : null,
+          patientName: patientName || '',
           status: 'pending',
         },
       ],
@@ -214,6 +241,8 @@ const createTask = asyncHandler(async (req, res) => {
           category,
           assignedTo: String(assignedTo),
           dueDate: task.dueDate,
+          patientId: task.patientId ? String(task.patientId) : null,
+          patientName: task.patientName || '',
         },
       },
       opts
@@ -227,7 +256,7 @@ const createTask = asyncHandler(async (req, res) => {
   try {
     const roomId = String(familyId);
     socketService.emitToFamily(roomId, 'task:created', { task: taskDto });
-    emitActivities(roomId, createdActivities);
+    emitActivities(roomId, createdActivities, taskDto);
   } catch (err) {
     console.error('Socket emit failed:', err.message);
   }
@@ -416,7 +445,7 @@ const updateTask = asyncHandler(async (req, res) => {
           completionNote: updates.completionNote,
         });
       }
-      emitActivities(roomId, activities);
+      emitActivities(roomId, activities, taskDto);
     } catch (err) {
       console.error('Socket emit failed:', err.message);
     }
@@ -473,7 +502,7 @@ const addNote = asyncHandler(async (req, res) => {
   try {
     const roomId = String(familyId);
     socketService.emitToFamily(roomId, 'task:updated', { task: taskDto });
-    emitActivities(roomId, activities);
+    emitActivities(roomId, activities, taskDto);
   } catch (err) {
     console.error('Socket emit failed:', err.message);
   }

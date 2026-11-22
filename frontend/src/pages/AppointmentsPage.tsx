@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { Calendar, Filter, Plus } from 'lucide-react';
+import { Calendar, Filter, Plus, Printer } from 'lucide-react';
 import AppointmentCard from '../components/appointments/AppointmentCard';
 import AppointmentForm from '../components/appointments/AppointmentForm';
+import DoctorVisitSheetModal from '../components/appointments/DoctorVisitSheetModal';
+import PatientSelectorBar from '../components/family/PatientSelectorBar';
 import {
   useAppointments,
   useCreateAppointment,
@@ -11,6 +13,8 @@ import {
   useUpdateAppointment,
 } from '../hooks/useAppointments';
 import { getApiErrorMessage, getFamily, getMembers } from '../lib/familyApi';
+import { useAuthStore } from '../store/authStore';
+import { usePatientStore } from '../store/patientStore';
 import type { Appointment, AppointmentInput, AppointmentStatus } from '../types';
 
 export default function AppointmentsPage() {
@@ -24,6 +28,7 @@ export default function AppointmentsPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [doctorSheetOpen, setDoctorSheetOpen] = useState(false);
 
   const membersQuery = useQuery({
     queryKey: ['family-members', fid],
@@ -40,13 +45,24 @@ export default function AppointmentsPage() {
   const members = (membersQuery.data?.members ?? []).flatMap((m) =>
     m.user ? [{ _id: m.user._id, name: m.user.name }] : []
   );
-  const canDelete = familyQuery.data?.role === 'admin';
+  const currentUser = useAuthStore((s) => s.user);
+  const currentUserId = currentUser?._id;
+  const isAdmin = familyQuery.data?.role === 'admin';
+  const family = familyQuery.data?.family;
+
+  const { selectedPatientId, getSelectedPatientId } = usePatientStore();
+  const activePatientId = getSelectedPatientId(
+    fid,
+    family?.patients?.[0]?._id ? String(family.patients[0]._id) : undefined
+  );
+  const patientFilter = selectedPatientId === 'all' ? undefined : (activePatientId || undefined);
 
   const filters = {
     page,
     limit: 20,
     status: statusFilter || undefined,
     assignedTo: assignedTo || undefined,
+    patientId: patientFilter,
     upcoming: upcomingOnly || undefined,
   };
 
@@ -65,8 +81,21 @@ export default function AppointmentsPage() {
   }
 
   function handleOpenEdit(appt: Appointment) {
+    const creatorId = typeof appt.createdBy === 'object' ? appt.createdBy?._id : appt.createdBy;
+    const isCreator = Boolean(currentUserId && creatorId && currentUserId === creatorId);
+    if (!isCreator && !isAdmin) {
+      alert('Confidential: Only the creator of this appointment or a family admin can edit its details.');
+      return;
+    }
     setEditingAppointment(appt);
     setFormOpen(true);
+  }
+
+  function handleStatusChange(appt: Appointment, newStatus: AppointmentStatus) {
+    updateMutation.mutate({
+      id: appt._id,
+      data: { status: newStatus },
+    });
   }
 
   function handleSubmit(data: AppointmentInput) {
@@ -88,6 +117,14 @@ export default function AppointmentsPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-6">
+      {family && (
+        <PatientSelectorBar
+          family={family}
+          isAdmin={isAdmin}
+          showDetailsCard={false}
+        />
+      )}
+
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Appointments & Doctor Visits</h1>
@@ -95,15 +132,26 @@ export default function AppointmentsPage() {
             Shared schedule for consultations, diagnostic tests, and follow-ups.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          disabled={!fid}
-          className="flex items-center gap-2 rounded-input bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Appointment</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDoctorSheetOpen(true)}
+            className="flex items-center gap-1.5 rounded-input border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text-primary hover:bg-background hover:border-primary/40 transition shadow-sm"
+          >
+            <Printer className="h-4 w-4 text-primary" />
+            <span>Clinic One-Pager</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            disabled={!fid}
+            className="flex items-center gap-2 rounded-input bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Appointment</span>
+          </button>
+        </div>
       </header>
 
       {/* Filter bar */}
@@ -192,15 +240,27 @@ export default function AppointmentsPage() {
       ) : (
         <div className="flex flex-col gap-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {appointments.map((appt) => (
-              <AppointmentCard
-                key={appt._id}
-                appointment={appt}
-                onEdit={() => handleOpenEdit(appt)}
-                onDelete={() => handleDelete(appt)}
-                canDelete={canDelete}
-              />
-            ))}
+            {appointments.map((appt) => {
+              const creatorId = typeof appt.createdBy === 'object' ? appt.createdBy?._id : appt.createdBy;
+              const isCreator = Boolean(currentUserId && creatorId && currentUserId === creatorId);
+              const isAssignee = Boolean(currentUserId && appt.assignedTo?._id && currentUserId === appt.assignedTo._id);
+              const canEditAppt = isCreator || isAdmin;
+              const canDeleteAppt = isCreator || isAdmin;
+              const canChangeStatus = isAssignee || isCreator || isAdmin;
+
+              return (
+                <AppointmentCard
+                  key={appt._id}
+                  appointment={appt}
+                  onEdit={() => handleOpenEdit(appt)}
+                  onDelete={() => handleDelete(appt)}
+                  onStatusChange={(newStatus) => handleStatusChange(appt, newStatus)}
+                  canEdit={canEditAppt}
+                  canDelete={canDeleteAppt}
+                  canChangeStatus={canChangeStatus}
+                />
+              );
+            })}
           </div>
 
           {totalPages > 1 && (
@@ -235,7 +295,15 @@ export default function AppointmentsPage() {
         onSubmit={handleSubmit}
         initialAppointment={editingAppointment}
         members={members}
+        patients={family?.patients}
+        defaultPatientId={patientFilter}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
+      />
+
+      <DoctorVisitSheetModal
+        fid={fid}
+        isOpen={doctorSheetOpen}
+        onClose={() => setDoctorSheetOpen(false)}
       />
     </div>
   );

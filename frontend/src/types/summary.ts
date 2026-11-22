@@ -23,6 +23,8 @@ export interface AiSummary {
   periodEnd: string;
   content: SummaryContent;
   disclaimer: string;
+  patientId?: string | null;
+  patientName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,5 +35,17 @@ export interface SummarySourceActivity {
   entityType: string;
   entityTitle: string;
   action: string;
+  createdAt: string;
+}
+
+export interface CareChatMessage {
+  _id: string;
+  familyId: string;
+  sender: string;
+  senderName: string;
+  role: 'user' | 'assistant';
+  message: string;
+  patientId?: string | null;
+  patientName?: string;
   createdAt: string;
 }

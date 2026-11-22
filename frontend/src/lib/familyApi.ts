@@ -1,6 +1,15 @@
 import { isAxiosError } from 'axios';
 import api from './api';
-import type { Family, FamilyDetail, FamilyMember, FamilyRole, FamilySummary, InviteInfo, JoinResult } from '../types';
+import type {
+  Family,
+  FamilyDetail,
+  FamilyMember,
+  FamilyRole,
+  FamilySummary,
+  InviteInfo,
+  JoinResult,
+  Patient,
+} from '../types';
 
 export async function createFamily(name: string): Promise<{ family: Family; role: FamilyRole }> {
   const response = await api.post<{ success: true; data: { family: Family; role: FamilyRole } }>(
@@ -43,6 +52,50 @@ export async function removeMember(
 ): Promise<{ userId: string; removed: true }> {
   const response = await api.delete<{ success: true; data: { userId: string; removed: true } }>(
     `/families/${fid}/members/${userId}`,
+  );
+  return response.data.data;
+}
+
+export async function updateCareRecipient(
+  fid: string,
+  data: Partial<NonNullable<Family['careRecipient']>>,
+): Promise<{ family: Family }> {
+  const response = await api.patch<{ success: true; data: { family: Family } }>(
+    `/families/${fid}/recipient`,
+    data,
+  );
+  return response.data.data;
+}
+
+export async function addPatient(
+  fid: string,
+  data: Omit<Patient, '_id' | 'createdAt' | 'updatedAt'>,
+): Promise<{ patient: Patient; family: Family }> {
+  const response = await api.post<{ success: true; data: { patient: Patient; family: Family } }>(
+    `/families/${fid}/patients`,
+    data,
+  );
+  return response.data.data;
+}
+
+export async function updatePatient(
+  fid: string,
+  patientId: string,
+  data: Partial<Patient>,
+): Promise<{ patient: Patient; family: Family }> {
+  const response = await api.patch<{ success: true; data: { patient: Patient; family: Family } }>(
+    `/families/${fid}/patients/${patientId}`,
+    data,
+  );
+  return response.data.data;
+}
+
+export async function deletePatient(
+  fid: string,
+  patientId: string,
+): Promise<{ patientId: string; family: Family }> {
+  const response = await api.delete<{ success: true; data: { patientId: string; family: Family } }>(
+    `/families/${fid}/patients/${patientId}`,
   );
   return response.data.data;
 }

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const Family = require('../models/Family');
 const Membership = require('../models/Membership');
 const CareTask = require('../models/CareTask');
@@ -10,12 +11,46 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Base family fields safe for any member. Invite fields are added separately.
 function toFamilyDto(family) {
+  const defaultRecipient = {
+    _id: String(family._id ? `${family._id}-patient-1` : 'patient-1'),
+    name: family.careRecipient?.name || 'Venkateswara Rao',
+    relationship: family.careRecipient?.relationship || 'Father',
+    age: family.careRecipient?.age || 72,
+    gender: family.careRecipient?.gender || 'Male',
+    condition: family.careRecipient?.condition || 'Cardiology recovery, Type 2 Diabetes, Hypertension',
+    location: family.careRecipient?.location || 'Guntur, Andhra Pradesh',
+    primaryLanguage: family.careRecipient?.primaryLanguage || 'Telugu, English',
+    notes: family.careRecipient?.notes || '',
+    isPrimary: true,
+  };
+
+  const rawPatients = Array.isArray(family.patients) && family.patients.length > 0
+    ? family.patients
+    : [defaultRecipient];
+
+  const patients = rawPatients.map((p, idx) => ({
+    _id: p._id ? String(p._id) : String(family._id ? `${family._id}-patient-${idx + 1}` : `patient-${idx + 1}`),
+    name: p.name || 'Patient',
+    relationship: p.relationship || 'Parent',
+    age: p.age || 70,
+    gender: p.gender || 'Other',
+    condition: p.condition || '',
+    location: p.location || 'Guntur, Andhra Pradesh',
+    primaryLanguage: p.primaryLanguage || 'Telugu, English',
+    notes: p.notes || '',
+    isPrimary: Boolean(p.isPrimary),
+  }));
+
+  const primaryPatient = patients.find((p) => p.isPrimary) || patients[0] || defaultRecipient;
+
   return {
     _id: family._id,
     name: family.name,
     createdBy: family.createdBy,
     createdAt: family.createdAt,
     updatedAt: family.updatedAt,
+    patients,
+    careRecipient: family.careRecipient || primaryPatient,
   };
 }
 
@@ -75,8 +110,7 @@ const createFamily = asyncHandler(async (req, res) => {
 
 const getMyFamilies = asyncHandler(async (req, res) => {
   const memberships = await Membership.find({ userId: req.user._id, deletedAt: null }).populate(
-    'familyId',
-    'name createdBy createdAt updatedAt'
+    'familyId'
   );
 
   const families = memberships
@@ -281,8 +315,33 @@ function toSnapshotActivityDto(activity) {
 
 const getSnapshot = asyncHandler(async (req, res) => {
   const familyId = req.params.fid;
+  const { patientId } = req.query;
   const now = new Date();
   const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const family = await Family.findById(familyId).lean();
+  const primaryPatientId = family?.patients?.[0]?._id ? String(family.patients[0]._id) : null;
+  const isPrimary = patientId && primaryPatientId && String(patientId) === primaryPatientId;
+
+  const taskFilter = { familyId, deletedAt: null };
+  const apptFilter = {
+    familyId,
+    deletedAt: null,
+    status: 'scheduled',
+    dateTime: { $gte: now, $lte: sevenDaysAhead },
+  };
+
+  if (patientId && patientId !== 'all') {
+    const isObjectId = mongoose.Types.ObjectId.isValid(patientId);
+    const pId = isObjectId ? new mongoose.Types.ObjectId(patientId) : patientId;
+    if (isPrimary) {
+      taskFilter.$or = [{ patientId: pId }, { patientId: null }, { patientId: { $exists: false } }];
+      apptFilter.$or = [{ patientId: pId }, { patientId: null }, { patientId: { $exists: false } }];
+    } else {
+      taskFilter.patientId = pId;
+      apptFilter.patientId = pId;
+    }
+  }
 
   const [
     completedCount,
@@ -292,27 +351,20 @@ const getSnapshot = asyncHandler(async (req, res) => {
     overdueTasks,
     recentActivities,
   ] = await Promise.all([
-    CareTask.countDocuments({ familyId, deletedAt: null, status: 'completed' }),
-    CareTask.countDocuments({ familyId, deletedAt: null, status: { $in: ['pending', 'in-progress'] } }),
+    CareTask.countDocuments({ ...taskFilter, status: 'completed' }),
+    CareTask.countDocuments({ ...taskFilter, status: { $in: ['pending', 'in-progress'] } }),
     CareTask.countDocuments({
-      familyId,
-      deletedAt: null,
+      ...taskFilter,
       status: { $ne: 'completed' },
       dueDate: { $lt: now },
     }),
-    Appointment.find({
-      familyId,
-      deletedAt: null,
-      status: 'scheduled',
-      dateTime: { $gte: now, $lte: sevenDaysAhead },
-    })
+    Appointment.find(apptFilter)
       .sort({ dateTime: 1 })
       .limit(20)
       .populate('assignedTo', 'name avatarColor')
       .lean(),
     CareTask.find({
-      familyId,
-      deletedAt: null,
+      ...taskFilter,
       status: { $ne: 'completed' },
       dueDate: { $lt: now },
     })
@@ -337,6 +389,163 @@ const getSnapshot = asyncHandler(async (req, res) => {
   });
 });
 
+const updateCareRecipient = asyncHandler(async (req, res) => {
+  const { fid } = req.params;
+  const family = await Family.findById(fid);
+  if (!family) throw new AppError(404, 'FAMILY_NOT_FOUND', 'Family workspace not found');
+
+  const { name, age, condition, location, primaryLanguage, notes } = req.body;
+  if (!family.careRecipient) {
+    family.careRecipient = {
+      name: 'Venkateswara Rao',
+      age: 72,
+      condition: 'Cardiology recovery, Type 2 Diabetes, Hypertension',
+      location: 'Guntur, Andhra Pradesh',
+      primaryLanguage: 'Telugu, English',
+      notes: '',
+    };
+  }
+
+  if (name !== undefined) family.careRecipient.name = name.trim();
+  if (age !== undefined && !Number.isNaN(Number(age))) family.careRecipient.age = Number(age);
+  if (condition !== undefined) family.careRecipient.condition = condition.trim();
+  if (location !== undefined) family.careRecipient.location = location.trim();
+  if (primaryLanguage !== undefined) family.careRecipient.primaryLanguage = primaryLanguage.trim();
+  if (notes !== undefined) family.careRecipient.notes = notes.trim();
+
+  await family.save();
+
+  return res.status(200).json({
+    success: true,
+    data: { family: toFamilyDtoForRole(family, req.membership?.role) },
+  });
+});
+
+const addPatient = asyncHandler(async (req, res) => {
+  const { fid } = req.params;
+  const family = await Family.findById(fid);
+  if (!family) throw new AppError(404, 'FAMILY_NOT_FOUND', 'Family workspace not found');
+
+  if (!Array.isArray(family.patients) || family.patients.length === 0) {
+    const existingRecipient = family.careRecipient || {};
+    family.patients = [
+      {
+        name: existingRecipient.name || 'Venkateswara Rao',
+        relationship: existingRecipient.relationship || 'Father',
+        age: existingRecipient.age || 72,
+        gender: existingRecipient.gender || 'Male',
+        condition: existingRecipient.condition || 'Cardiology recovery, Type 2 Diabetes, Hypertension',
+        location: existingRecipient.location || 'Guntur, Andhra Pradesh',
+        primaryLanguage: existingRecipient.primaryLanguage || 'Telugu, English',
+        notes: existingRecipient.notes || '',
+        isPrimary: true,
+      },
+    ];
+  }
+
+  const { name, relationship, age, gender, condition, location, primaryLanguage, notes } = req.body;
+
+  const newPatient = {
+    name: name.trim(),
+    relationship: (relationship || 'Parent').trim(),
+    age: age !== undefined && !Number.isNaN(Number(age)) ? Number(age) : 70,
+    gender: gender || 'Other',
+    condition: (condition || '').trim(),
+    location: (location || 'Guntur, Andhra Pradesh').trim(),
+    primaryLanguage: (primaryLanguage || 'Telugu, English').trim(),
+    notes: (notes || '').trim(),
+    isPrimary: false,
+  };
+
+  family.patients.push(newPatient);
+
+  await family.save();
+
+  const savedPatient = family.patients[family.patients.length - 1];
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      patient: savedPatient,
+      family: toFamilyDtoForRole(family, req.membership?.role),
+    },
+  });
+});
+
+const updatePatient = asyncHandler(async (req, res) => {
+  const { fid, patientId } = req.params;
+  const family = await Family.findById(fid);
+  if (!family) throw new AppError(404, 'FAMILY_NOT_FOUND', 'Family workspace not found');
+
+  if (!Array.isArray(family.patients)) {
+    family.patients = [];
+  }
+
+  const patient = family.patients.id(patientId);
+  if (!patient) throw new AppError(404, 'PATIENT_NOT_FOUND', 'Care recipient not found in this family');
+
+  const { name, relationship, age, gender, condition, location, primaryLanguage, notes, isPrimary } = req.body;
+
+  if (name !== undefined) patient.name = name.trim();
+  if (relationship !== undefined) patient.relationship = relationship.trim();
+  if (age !== undefined && !Number.isNaN(Number(age))) patient.age = Number(age);
+  if (gender !== undefined) patient.gender = gender;
+  if (condition !== undefined) patient.condition = condition.trim();
+  if (location !== undefined) patient.location = location.trim();
+  if (primaryLanguage !== undefined) patient.primaryLanguage = primaryLanguage.trim();
+  if (notes !== undefined) patient.notes = notes.trim();
+
+  if (isPrimary === true) {
+    family.patients.forEach((p) => {
+      p.isPrimary = p._id.toString() === patientId.toString();
+    });
+    family.careRecipient = {
+      name: patient.name,
+      age: patient.age,
+      condition: patient.condition,
+      location: patient.location,
+      primaryLanguage: patient.primaryLanguage,
+      notes: patient.notes,
+    };
+  }
+
+  await family.save();
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      patient,
+      family: toFamilyDtoForRole(family, req.membership?.role),
+    },
+  });
+});
+
+const deletePatient = asyncHandler(async (req, res) => {
+  const { fid, patientId } = req.params;
+  const family = await Family.findById(fid);
+  if (!family) throw new AppError(404, 'FAMILY_NOT_FOUND', 'Family workspace not found');
+
+  if (!Array.isArray(family.patients)) {
+    throw new AppError(404, 'PATIENT_NOT_FOUND', 'Care recipient not found in this family');
+  }
+
+  const patientIndex = family.patients.findIndex((p) => p._id.toString() === patientId.toString());
+  if (patientIndex === -1) {
+    throw new AppError(404, 'PATIENT_NOT_FOUND', 'Care recipient not found in this family');
+  }
+
+  family.patients.splice(patientIndex, 1);
+  await family.save();
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      patientId,
+      family: toFamilyDtoForRole(family, req.membership?.role),
+    },
+  });
+});
+
 module.exports = {
   createFamily,
   getMyFamilies,
@@ -346,4 +555,8 @@ module.exports = {
   joinByToken,
   removeMember,
   getSnapshot,
+  updateCareRecipient,
+  addPatient,
+  updatePatient,
+  deletePatient,
 };

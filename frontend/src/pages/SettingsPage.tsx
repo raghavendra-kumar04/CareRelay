@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import PatientSelectorBar from '../components/family/PatientSelectorBar';
 import {
   createFamily,
   getApiErrorCode,
@@ -12,6 +13,7 @@ import {
   removeMember,
 } from '../lib/familyApi';
 import { useAuthStore } from '../store/authStore';
+import { useFamilyStore } from '../store/familyStore';
 import type { FamilyDetail, FamilyMember, FamilyRole, FamilySummary } from '../types';
 
 const NAME_MAX = 100;
@@ -31,6 +33,7 @@ function RoleBadge({ role }: { role: FamilyRole }) {
 
 export default function SettingsPage() {
   const currentUserId = useAuthStore((s) => s.user?._id ?? null);
+  const { activeFamilyId, setActiveFamilyId } = useFamilyStore();
 
   const [families, setFamilies] = useState<FamilySummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -40,7 +43,7 @@ export default function SettingsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const [selectedFid, setSelectedFid] = useState<string | null>(null);
+  const [selectedFid, setSelectedFid] = useState<string | null>(activeFamilyId || null);
   const [detail, setDetail] = useState<FamilyDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -75,10 +78,11 @@ export default function SettingsPage() {
       const { families: list } = await getMyFamilies();
       setFamilies(list);
       if (list.length > 0 && !selectedFid) {
-        const stored = localStorage.getItem('activeFamilyId');
-        const matched = list.find((f) => f.family._id === stored);
-        const toSelect = matched ? matched.family._id : list[0].family._id;
+        const toSelect = activeFamilyId && list.some((f) => f.family._id === activeFamilyId)
+          ? activeFamilyId
+          : list[0].family._id;
         setSelectedFid(toSelect);
+        setActiveFamilyId(toSelect);
         void loadDetail(toSelect);
       }
     } catch (err) {
@@ -86,7 +90,7 @@ export default function SettingsPage() {
     } finally {
       setListLoading(false);
     }
-  }, [loadDetail, selectedFid]);
+  }, [loadDetail, selectedFid, activeFamilyId, setActiveFamilyId]);
 
   useEffect(() => {
     void loadFamilies();
@@ -94,7 +98,7 @@ export default function SettingsPage() {
 
   const handleSelect = (fid: string) => {
     setSelectedFid(fid);
-    localStorage.setItem('activeFamilyId', fid);
+    setActiveFamilyId(fid);
     setDetail(null);
     setInviteError(null);
     setRemoveError(null);
@@ -252,7 +256,7 @@ export default function SettingsPage() {
                       aria-pressed={selected}
                       className={`flex w-full items-center justify-between gap-3 rounded-card border bg-background p-4 text-left shadow-card transition ${
                         selected
-                          ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                          ? 'border-primary ring-2 ring-primary/30 bg-primary/10 shadow-sm'
                           : 'border-border hover:border-primary/40 hover:bg-surface/50'
                       }`}
                     >
@@ -305,6 +309,11 @@ export default function SettingsPage() {
                 <span>Your role:</span>
                 <RoleBadge role={detail.role} />
               </div>
+            </div>
+
+            {/* Patients / Care Recipients Management */}
+            <div>
+              <PatientSelectorBar family={detail.family} isAdmin={isAdmin} />
             </div>
 
             {isAdmin && (

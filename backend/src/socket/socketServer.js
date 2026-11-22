@@ -7,8 +7,30 @@ const Membership = require('../models/Membership');
 const socketService = require('../services/socketService');
 
 function initSocket(httpServer) {
+  const allowedOrigins = [
+    env.FRONTEND_URL,
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+  ].filter(Boolean);
+
   const io = new Server(httpServer, {
-    cors: { origin: env.FRONTEND_URL, credentials: true },
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV !== 'production') {
+          return callback(null, true);
+        }
+        try {
+          const parsed = new URL(origin);
+          if (parsed.hostname.endsWith('.vercel.app')) {
+            return callback(null, true);
+          }
+        } catch {}
+        return callback(new Error('Not allowed by CORS'));
+      },
+      credentials: true,
+    },
   });
 
   // Handshake authentication: mirrors requireAuth (src/middleware/auth.js).

@@ -21,6 +21,7 @@ const listAppointmentsQuery = {
   query: z.object({
     status: z.enum(APPOINTMENT_STATUSES).optional(),
     assignedTo: objectId.optional(),
+    patientId: z.string().optional(),
     upcoming: z
       .enum(['true', 'false'])
       .optional()
@@ -39,6 +40,8 @@ const createAppointmentSchema = {
     dateTime: nullableDateTime,
     location: z.string().trim().max(200).optional().default(''),
     assignedTo: objectId,
+    patientId: z.string().optional(),
+    patientName: z.string().trim().optional(),
     status: z.enum(APPOINTMENT_STATUSES).optional().default('scheduled'),
     notes: z.string().trim().max(1000).optional().default(''),
   }),
@@ -53,6 +56,8 @@ const updateAppointmentSchema = {
     dateTime: nullableDateTime.optional(),
     location: z.string().trim().max(200).optional(),
     assignedTo: objectId.optional(),
+    patientId: z.string().optional(),
+    patientName: z.string().trim().optional(),
     status: z.enum(APPOINTMENT_STATUSES).optional(),
     notes: z.string().trim().max(1000).optional(),
   }),

@@ -41,7 +41,7 @@ async function issueRefreshToken(userId) {
 function refreshCookieBaseOptions() {
   return {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: env.NODE_ENV === 'production',
     path: REFRESH_COOKIE_PATH,
   };

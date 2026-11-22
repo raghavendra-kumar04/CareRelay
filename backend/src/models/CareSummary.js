@@ -16,6 +16,8 @@ const careSummarySchema = new Schema(
   {
     familyId: { type: Schema.Types.ObjectId, ref: 'Family', required: true, index: true },
     requestedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    patientId: { type: Schema.Types.ObjectId, default: null },
+    patientName: { type: String, default: '' },
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
     status: {

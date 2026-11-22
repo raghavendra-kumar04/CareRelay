@@ -25,6 +25,7 @@ function toQueryParams(filters: TaskListFilters): Record<string, string | number
   const params: Record<string, string | number> = {};
   if (filters.status) params.status = filters.status;
   if (filters.assignedTo) params.assignedTo = filters.assignedTo;
+  if (filters.patientId) params.patientId = filters.patientId;
   if (filters.priority) params.priority = filters.priority;
   if (filters.category) params.category = filters.category;
   if (filters.overdue) params.overdue = 'true';

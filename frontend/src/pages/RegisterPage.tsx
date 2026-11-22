@@ -94,11 +94,11 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col justify-between bg-background px-4 py-8">
       {/* Top Header */}
       <div className="mx-auto w-full max-w-md flex items-center justify-between pb-6">
-        <Link to="/" className="flex items-center gap-2 group">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-white shadow-sm transition group-hover:bg-primary-dark">
-            C
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <img src="/logo-icon.png" alt="CareRelay" className="h-8 w-auto object-contain transition group-hover:scale-105" />
+          <span className="text-xl font-bold tracking-tight text-text-primary">
+            Care<span className="text-primary">Relay</span>
           </span>
-          <span className="text-xl font-bold tracking-tight text-primary">CareRelay</span>
         </Link>
         <Link
           to="/"

@@ -28,6 +28,32 @@ export interface AuthPayload {
 
 export type FamilyRole = 'admin' | 'member';
 
+export interface Patient {
+  _id: string;
+  name: string;
+  relationship?: string;
+  age?: number;
+  gender?: string;
+  condition?: string;
+  location?: string;
+  primaryLanguage?: string;
+  notes?: string;
+  isPrimary?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CareRecipient {
+  _id?: string;
+  name: string;
+  relationship?: string;
+  age?: number;
+  condition?: string;
+  location?: string;
+  primaryLanguage?: string;
+  notes?: string;
+}
+
 export interface Family {
   _id: string;
   name: string;
@@ -36,6 +62,8 @@ export interface Family {
   updatedAt: string;
   inviteToken?: string;
   inviteTokenExpiresAt?: string | null;
+  patients?: Patient[];
+  careRecipient?: Patient | CareRecipient;
 }
 
 export interface FamilySummary {
@@ -99,6 +127,8 @@ export interface Task {
   completionNote: string | null;
   notes: TaskNote[];
   relatedAppointmentId: string | null;
+  patientId?: string | null;
+  patientName?: string;
   createdAt: string;
   updatedAt: string;
   isOverdue: boolean;
@@ -107,6 +137,7 @@ export interface Task {
 export interface TaskListFilters {
   status?: TaskStatus;
   assignedTo?: string;
+  patientId?: string;
   priority?: TaskPriority;
   category?: TaskCategory;
   overdue?: boolean;
@@ -120,6 +151,8 @@ export interface TaskInput {
   category: TaskCategory;
   priority?: TaskPriority;
   assignedTo: string;
+  patientId?: string;
+  patientName?: string;
   dueDate?: string | null;
 }
 
@@ -182,6 +215,12 @@ export interface FamilySnapshot {
 
 export type ActivityEntityType = 'task' | 'appointment';
 
+export interface ActivityUserRef {
+  _id: string;
+  name: string;
+  avatarColor?: string;
+}
+
 export interface ActivityItemData {
   _id: string;
   familyId: string;
@@ -192,12 +231,17 @@ export interface ActivityItemData {
   entityTitle: string;
   action: string;
   meta: Record<string, unknown>;
+  assignedBy?: ActivityUserRef | string | null;
+  assignedTo?: ActivityUserRef | string | null;
+  patientId?: string | null;
+  patientName?: string | null;
   createdAt: string;
 }
 
 export interface ActivityFilters {
   entityType?: ActivityEntityType;
   actorId?: string;
+  patientId?: string;
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -205,6 +249,12 @@ export interface ActivityFilters {
 }
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
+
+export interface AppointmentAssignee {
+  _id: string;
+  name: string;
+  avatarColor?: string;
+}
 
 export interface Appointment {
   _id: string;
@@ -217,8 +267,10 @@ export interface Appointment {
   location?: string;
   status: AppointmentStatus;
   notes?: string;
-  assignedTo: { _id: string; name: string; avatarColor?: string } | null;
-  createdBy?: string | null;
+  patientId?: string | null;
+  patientName?: string;
+  assignedTo: AppointmentAssignee | null;
+  createdBy?: AppointmentAssignee | string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -231,6 +283,8 @@ export interface AppointmentInput {
   dateTime: string;
   location?: string;
   assignedTo: string;
+  patientId?: string;
+  patientName?: string;
   status?: AppointmentStatus;
   notes?: string;
 }
@@ -246,6 +300,8 @@ export interface Prescription {
   endDate?: string | null;
   refillDueDate?: string | null;
   notes?: string;
+  patientId?: string | null;
+  patientName?: string;
   status: 'active' | 'completed' | 'discontinued';
   createdAt: string;
   updatedAt: string;

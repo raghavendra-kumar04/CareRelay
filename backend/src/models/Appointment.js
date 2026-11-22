@@ -16,6 +16,8 @@ const appointmentSchema = new Schema(
       enum: ['scheduled', 'completed', 'cancelled', 'rescheduled'],
       default: 'scheduled',
     },
+    patientId: { type: Schema.Types.ObjectId, default: null },
+    patientName: { type: String, trim: true, default: '' },
     notes: { type: String, trim: true, maxlength: 1000, default: '' },
     // Soft delete: documents are never hard-deleted; deletedAt marks removal.
     deletedAt: { type: Date, default: null },

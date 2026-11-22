@@ -4,8 +4,8 @@ import { useSocket } from '../../hooks/useSocket';
 import Navbar, { useFirstFamilyAppointmentsPath, useFirstFamilyTasksPath } from './Navbar';
 
 function bottomNavClass({ isActive }: { isActive: boolean }): string {
-  return `flex flex-col items-center gap-0.5 py-2 text-xs ${
-    isActive ? 'text-primary' : 'text-text-secondary'
+  return `flex flex-col items-center justify-center gap-1 py-2 text-xs transition-all ${
+    isActive ? 'text-primary font-bold bg-primary/10 border-t-2 border-primary -mt-[1px]' : 'text-text-secondary hover:text-text-primary'
   }`;
 }
 

@@ -102,9 +102,16 @@ export default function TaskCard({
         {/* Header: Title, Category, Priority */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <span className="text-[11px] font-medium text-text-secondary tracking-wide uppercase">
-              {CATEGORY_LABELS[task.category] || 'Care Task'}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-medium text-text-secondary tracking-wide uppercase">
+                {CATEGORY_LABELS[task.category] || 'Care Task'}
+              </span>
+              {task.patientName && (
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.2 rounded border border-primary/20">
+                  {task.patientName}
+                </span>
+              )}
+            </div>
             <h3 className="text-base font-semibold text-text-primary mt-0.5 line-clamp-2">
               {task.title}
             </h3>

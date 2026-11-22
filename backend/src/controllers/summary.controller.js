@@ -1,5 +1,6 @@
 const CareSummary = require('../models/CareSummary');
 const Activity = require('../models/Activity');
+const CareChatMessage = require('../models/CareChatMessage');
 const aiService = require('../services/aiService');
 const socketService = require('../services/socketService');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
@@ -20,6 +21,8 @@ function toSummaryDto(doc) {
     _id: String(doc._id),
     familyId: String(doc.familyId),
     status: doc.status,
+    patientId: doc.patientId ? String(doc.patientId) : null,
+    patientName: doc.patientName || '',
     errorCode: doc.errorCode ?? null,
     periodStart: doc.periodStart,
     periodEnd: doc.periodEnd,
@@ -40,11 +43,20 @@ function toSummaryDto(doc) {
 const generateSummary = asyncHandler(async (req, res) => {
   const familyId = req.params.fid;
   const requestedBy = req.user._id;
+  const patientId = req.body?.patientId || req.query?.patientId || null;
+  const patientName = req.body?.patientName || req.query?.patientName || '';
   const { periodStart, periodEnd } = aiService.getSummaryPeriod();
+
+  const mongoose = require('mongoose');
+  const validPatientObjectId = patientId && mongoose.Types.ObjectId.isValid(patientId)
+    ? new mongoose.Types.ObjectId(patientId)
+    : null;
 
   const doc = await CareSummary.create({
     familyId,
     requestedBy,
+    patientId: validPatientObjectId,
+    patientName,
     periodStart,
     periodEnd,
     status: 'generating',
@@ -52,7 +64,7 @@ const generateSummary = asyncHandler(async (req, res) => {
 
   let result;
   try {
-    result = await aiService.generateFamilySummary({ familyId, requestedBy });
+    result = await aiService.generateFamilySummary({ familyId, requestedBy, patientId, patientName });
   } catch (err) {
     const isAppError = err instanceof AppError;
     await CareSummary.updateOne(
@@ -90,8 +102,30 @@ const generateSummary = asyncHandler(async (req, res) => {
 });
 
 const listSummaries = asyncHandler(async (req, res) => {
-  const { page, limit } = req.validatedQuery;
+  const { page, limit, patientId } = req.validatedQuery;
   const filter = { familyId: req.params.fid };
+
+  if (patientId && patientId !== 'all') {
+    const mongoose = require('mongoose');
+    const Family = require('../models/Family');
+    const family = await Family.findById(req.params.fid).lean();
+    const primaryPatientId = family?.patients?.[0]?._id ? String(family.patients[0]._id) : null;
+    const isPrimary = primaryPatientId && String(patientId) === primaryPatientId;
+    const isObjectId = mongoose.Types.ObjectId.isValid(patientId);
+    const pObjectId = isObjectId ? new mongoose.Types.ObjectId(patientId) : null;
+
+    if (isPrimary) {
+      filter.$or = [
+        ...(pObjectId ? [{ patientId: pObjectId }] : []),
+        { patientId: null },
+        { patientId: { $exists: false } },
+      ];
+    } else if (pObjectId) {
+      filter.patientId = pObjectId;
+    } else {
+      filter.patientId = patientId;
+    }
+  }
 
   const [summaries, total] = await Promise.all([
     CareSummary.find(filter)
@@ -139,4 +173,68 @@ const getSummary = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { generateSummary, listSummaries, getSummary };
+const getChatHistory = asyncHandler(async (req, res) => {
+  const familyId = req.params.fid;
+  const messages = await CareChatMessage.find({ familyId, deletedAt: null })
+    .sort({ createdAt: 1 })
+    .limit(60)
+    .lean();
+
+  res.json({
+    success: true,
+    data: { messages },
+  });
+});
+
+const sendChatMessage = asyncHandler(async (req, res) => {
+  const familyId = req.params.fid;
+  const { message, patientId, patientName } = req.body;
+  const userName = req.user?.name || 'Family Member';
+
+  const userDoc = await CareChatMessage.create({
+    familyId,
+    sender: req.user._id,
+    senderName: userName,
+    role: 'user',
+    message,
+  });
+
+  try {
+    socketService.emitToFamily(String(familyId), 'chat:message', { message: userDoc });
+  } catch (err) {
+    console.error('Socket emit chat:message error:', err.message);
+  }
+
+  const assistantResponse = await aiService.answerFamilyQuery({
+    familyId,
+    userQuery: message,
+    userName,
+    userId: req.user._id,
+    patientId,
+    patientName,
+  });
+
+  const assistantDoc = await CareChatMessage.create({
+    familyId,
+    sender: req.user._id,
+    senderName: 'Care Assistant',
+    role: 'assistant',
+    message: assistantResponse,
+  });
+
+  try {
+    socketService.emitToFamily(String(familyId), 'chat:message', { message: assistantDoc });
+  } catch (err) {
+    console.error('Socket emit chat:message error:', err.message);
+  }
+
+  res.status(201).json({
+    success: true,
+    data: {
+      userMessage: userDoc,
+      assistantMessage: assistantDoc,
+    },
+  });
+});
+
+module.exports = { generateSummary, listSummaries, getSummary, getChatHistory, sendChatMessage };

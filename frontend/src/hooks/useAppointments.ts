@@ -17,7 +17,7 @@ export interface AppointmentListResponse {
 
 export function useAppointments(
   fid: string,
-  filters?: { status?: AppointmentStatus; assignedTo?: string; upcoming?: boolean; page?: number; limit?: number }
+  filters?: { status?: AppointmentStatus; assignedTo?: string; patientId?: string; upcoming?: boolean; page?: number; limit?: number }
 ) {
   return useQuery({
     queryKey: appointmentKeys.list(fid, filters),

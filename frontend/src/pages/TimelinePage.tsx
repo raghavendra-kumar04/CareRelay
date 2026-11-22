@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSocketStore } from '../store/socketStore';
-import { getApiErrorMessage, getMembers, getMyFamilies } from '../lib/familyApi';
+import { getApiErrorMessage, getFamily, getMembers, getMyFamilies } from '../lib/familyApi';
 import { activityKeys, useActivities } from '../hooks/useActivities';
 import type { ActivityListResult } from '../hooks/useActivities';
 import ActivityItem from '../components/timeline/ActivityItem';
+import PatientSelectorBar from '../components/family/PatientSelectorBar';
+import { useFamilyStore } from '../store/familyStore';
+import { usePatientStore } from '../store/patientStore';
 import type { ActivityEntityType, ActivityFilters, ActivityItemData } from '../types';
 
 const PAGE_SIZE = 20;
@@ -45,14 +48,24 @@ function TimelinePage() {
   const queryClient = useQueryClient();
   const socket = useSocketStore((s) => s.socket);
 
+  const { activeFamilyId } = useFamilyStore();
+  const { selectedPatientId, setSelectedPatientId, getSelectedPatientId } = usePatientStore();
   const familiesQuery = useQuery({
     queryKey: ['families', 'mine'],
     queryFn: getMyFamilies,
   });
   const families = familiesQuery.data?.families ?? [];
-  const storedFid = localStorage.getItem('activeFamilyId');
-  const matched = families.find((f) => f.family._id === storedFid);
-  const fid = matched ? matched.family._id : families[0]?.family._id ?? '';
+  const fid = (activeFamilyId && families.some((f) => f.family._id === activeFamilyId))
+    ? activeFamilyId
+    : (families[0]?.family._id ?? '');
+
+  const familyQuery = useQuery({
+    queryKey: ['family', fid],
+    queryFn: () => getFamily(fid),
+    enabled: Boolean(fid),
+  });
+  const family = familyQuery.data?.family;
+  const isAdmin = familyQuery.data?.role === 'admin';
 
   const membersQuery = useQuery({
     queryKey: ['family-members', fid],
@@ -130,6 +143,24 @@ function TimelinePage() {
     };
   }, []);
 
+  const activePatientId = selectedPatientId === 'all'
+    ? 'all'
+    : getSelectedPatientId(
+      fid,
+      family?.patients?.[0]?._id ? String(family.patients[0]._id) : undefined
+    );
+
+  const rawItems = activitiesQuery.data?.items ?? [];
+  const items = useMemo(() => {
+    if (!activePatientId || activePatientId === 'all') return rawItems;
+    const isPrimary = family?.patients?.[0]?._id && String(family.patients[0]._id) === activePatientId;
+    return rawItems.filter((item) => {
+      if (item.patientId) return item.patientId === activePatientId;
+      if (isPrimary && !item.patientId) return true;
+      return false;
+    });
+  }, [rawItems, activePatientId, family]);
+
   if (familiesQuery.isPending) {
     return <p className="text-sm text-text-secondary">Loading…</p>;
   }
@@ -156,7 +187,6 @@ function TimelinePage() {
     entityType !== 'all' || actorId !== 'all' || startDate !== '' || endDate !== '';
 
   const pagination = activitiesQuery.data?.pagination;
-  const items = activitiesQuery.data?.items ?? [];
   const limit = pagination?.limit ?? PAGE_SIZE;
   const total = pagination?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -165,6 +195,15 @@ function TimelinePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {family && (
+        <PatientSelectorBar
+          family={family}
+          isAdmin={isAdmin}
+          showDetailsCard={false}
+          onPatientChange={(p) => setSelectedPatientId(fid, p ? String(p._id) : 'all')}
+        />
+      )}
+
       <h1 className="text-2xl font-semibold text-text-primary">Timeline</h1>
 
       <div className="grid gap-3 sm:grid-cols-4">

@@ -17,6 +17,8 @@ const CareTask = require('../src/models/CareTask');
 const Appointment = require('../src/models/Appointment');
 const Prescription = require('../src/models/Prescription');
 const Activity = require('../src/models/Activity');
+const CareSummary = require('../src/models/CareSummary');
+const CareChatMessage = require('../src/models/CareChatMessage');
 
 const DEMO_PASSWORD = 'Demo@1234';
 const BCRYPT_ROUNDS = 12;
@@ -346,6 +348,131 @@ async function seed() {
     await Activity.insertMany(missing);
   }
   missing.forEach(() => track('Activities', true));
+
+  // Seed initial CareSummary if none exists
+  const existingSummary = await CareSummary.findOne({ familyId, status: 'ready' });
+  if (!existingSummary) {
+    const actList = await Activity.find({ familyId }).limit(10).lean();
+    const sourceIds = actList.map((a) => a._id);
+    await CareSummary.create({
+      familyId,
+      requestedBy: users.riya._id,
+      periodStart: shift(anchor, -7 * 24),
+      periodEnd: anchor,
+      status: 'ready',
+      sourceActivityIds: sourceIds,
+      content: {
+        recentlyCompleted: [
+          {
+            text: 'Refill Metformin medication was completed by Priya Rao with note: "Refill collected from the Guntur pharmacy."',
+            sourceIds: sourceIds.slice(0, 1),
+          },
+          {
+            text: 'Discharge summary collected from Guntur hospital was completed by Arjun Rao and uploaded to family folder.',
+            sourceIds: sourceIds.slice(1, 2),
+          },
+        ],
+        pending: [
+          {
+            text: 'Submit insurance claim for lab tests is pending (urgent priority, assigned to Riya Rao).',
+            sourceIds: sourceIds.slice(2, 3),
+          },
+          {
+            text: 'Book cab for cardiology visit is pending (medium priority, assigned to Arjun Rao).',
+            sourceIds: sourceIds.slice(3, 4),
+          },
+          {
+            text: 'Send weekly update to cousins is pending (low priority, assigned to Priya Rao).',
+            sourceIds: sourceIds.slice(4, 5),
+          },
+        ],
+        overdue: [
+          {
+            text: 'Submit insurance claim for lab tests is overdue (assigned to Riya Rao).',
+            sourceIds: sourceIds.slice(2, 3),
+          },
+        ],
+        upcomingAppointments: [
+          {
+            text: 'Cardiology follow-up with Dr. Suresh Reddy at Guntur Heart Centre (accompanied by Arjun Rao).',
+            sourceIds: sourceIds.slice(5, 6),
+          },
+        ],
+        suggestedAdminActions: [
+          {
+            text: 'Follow up on the urgent insurance claim submission with Riya Rao.',
+            sourceIds: sourceIds.slice(2, 3),
+          },
+          {
+            text: 'Confirm cab booking with Arjun Rao 24 hours prior to the cardiology appointment.',
+            sourceIds: sourceIds.slice(3, 4),
+          },
+        ],
+      },
+    });
+    track('CareSummary', true);
+  } else {
+    track('CareSummary', false);
+  }
+
+  // Seed demo CareChatMessage conversation
+  const chatCount = await CareChatMessage.countDocuments({ familyId });
+  if (chatCount === 0) {
+    const demoMessages = [
+      {
+        familyId,
+        sender: users.arjun._id,
+        senderName: users.arjun.name,
+        role: 'user',
+        message: 'What tasks are overdue for Dad this week?',
+        createdAt: shift(anchor, -48),
+      },
+      {
+        familyId,
+        sender: users.riya._id,
+        senderName: 'Care Assistant',
+        role: 'assistant',
+        message: 'Here are the overdue tasks requiring prompt attention:\n\n• **Submit insurance claim for lab tests** (urgent priority) — Due: Nov 18, 2026 | Assigned to: Riya Rao\n\nPlease check in with Riya to coordinate completion.',
+        createdAt: shift(anchor, -47),
+      },
+      {
+        familyId,
+        sender: users.priya._id,
+        senderName: users.priya.name,
+        role: 'user',
+        message: 'When is the next cardiology appointment?',
+        createdAt: shift(anchor, -24),
+      },
+      {
+        familyId,
+        sender: users.riya._id,
+        senderName: 'Care Assistant',
+        role: 'assistant',
+        message: 'Here are the upcoming appointments scheduled:\n\n• **Cardiology follow-up** with Dr. Suresh Reddy (Cardiology) on **Thursday, Nov 26 at 8:55 PM** at Guntur Heart Centre. Accompanied by: Arjun Rao.',
+        createdAt: shift(anchor, -23),
+      },
+      {
+        familyId,
+        sender: users.riya._id,
+        senderName: users.riya.name,
+        role: 'user',
+        message: 'Did we refill the Metformin prescription?',
+        createdAt: shift(anchor, -6),
+      },
+      {
+        familyId,
+        sender: users.riya._id,
+        senderName: 'Care Assistant',
+        role: 'assistant',
+        message: 'Yes! **Refill Metformin prescription** was completed by Priya Rao.\nCompletion note: *"Refill collected from the Guntur pharmacy."*',
+        createdAt: shift(anchor, -5),
+      },
+    ];
+    await CareChatMessage.insertMany(demoMessages);
+    track('CareChatMessages', true);
+  } else {
+    track('CareChatMessages', false);
+  }
 
   console.log(`Family _id: ${familyId}`);
   for (const [name, s] of Object.entries(stats)) {

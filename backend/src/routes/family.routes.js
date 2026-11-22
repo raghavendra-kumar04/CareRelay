@@ -8,6 +8,10 @@ const {
   familyIdParams,
   memberParams,
   tokenParams,
+  updateCareRecipientSchema,
+  addPatientSchema,
+  updatePatientSchema,
+  patientParams,
 } = require('../validators/family.validators');
 const controller = require('../controllers/family.controller');
 
@@ -22,6 +26,34 @@ router.get(
   validate({ params: familyIdParams }),
   requireFamilyMembership,
   controller.getFamily
+);
+router.patch(
+  '/:fid/recipient',
+  requireAuth,
+  validate({ params: familyIdParams, body: updateCareRecipientSchema }),
+  requireFamilyMembership,
+  controller.updateCareRecipient
+);
+router.post(
+  '/:fid/patients',
+  requireAuth,
+  validate({ params: familyIdParams, body: addPatientSchema }),
+  requireFamilyMembership,
+  controller.addPatient
+);
+router.patch(
+  '/:fid/patients/:patientId',
+  requireAuth,
+  validate({ params: patientParams, body: updatePatientSchema }),
+  requireFamilyMembership,
+  controller.updatePatient
+);
+router.delete(
+  '/:fid/patients/:patientId',
+  requireAuth,
+  validate({ params: patientParams }),
+  requireFamilyMembership,
+  controller.deletePatient
 );
 router.get('/:fid/snapshot', requireAuth, requireFamilyMembership, controller.getSnapshot);
 router.get(

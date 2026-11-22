@@ -36,6 +36,8 @@ const careTaskSchema = new Schema(
     completionNote: { type: String, trim: true, maxlength: 500, default: null },
     notes: { type: [noteSchema], default: [] },
     relatedAppointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
+    patientId: { type: Schema.Types.ObjectId, default: null },
+    patientName: { type: String, trim: true, default: '' },
     // Soft delete: documents are never hard-deleted; deletedAt marks removal.
     deletedAt: { type: Date, default: null },
   },

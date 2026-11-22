@@ -13,6 +13,8 @@ const prescriptionSchema = new Schema(
     // PRD field (B-06 / Prescriptions schema): drives refill reminders.
     refillDueDate: { type: Date, default: null },
     notes: { type: String, trim: true, maxlength: 1000, default: '' },
+    patientId: { type: Schema.Types.ObjectId, default: null },
+    patientName: { type: String, trim: true, default: '' },
     status: {
       type: String,
       enum: ['active', 'completed', 'discontinued'],
